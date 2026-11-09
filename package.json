@@ -1,0 +1,81 @@
+{
+  "name": "sentinel-node-tester-solana",
+  "version": "0.1.0",
+  "description": "Sentinel dVPN node tester on Solana — the Cosmos Node Tester (identical dashboards and API) driving real paid sessions in throwaway dvpnd client containers, with SNTR1 memo reports on chain",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "sentinel-audit-sol": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node cli.js",
+    "doctor": "node scripts/doctor.mjs",
+    "patch-idl": "node scripts/patch-idl.mjs",
+    "postinstall": "node scripts/patch-idl.mjs",
+    "test": "node scripts/test-unit.mjs && node scripts/test-handlers.mjs && node scripts/test-data-check.mjs && node scripts/test-data-breaks.mjs",
+    "test:unit": "node scripts/test-unit.mjs",
+    "test:handlers": "node scripts/test-handlers.mjs",
+    "test:e2e": "node scripts/cli-e2e.mjs",
+    "coverage": "node scripts/coverage.mjs",
+    "test:e2e:finish": "node scripts/cli-e2e.mjs --finish",
+    "patch-server": "node scripts/dev/patch-server.mjs",
+    "data-check": "node scripts/data-check.mjs",
+    "build-client-image": "bash scripts/build-client-image.sh"
+  },
+  "files": [
+    "server.js",
+    "cli.js",
+    "admin.html",
+    "public.html",
+    "live.html",
+    "node.html",
+    "about.html",
+    "about-modal.js",
+    "sentinel.css",
+    "logo.jpg",
+    "sentinel-shield.png",
+    "fonts/",
+    "core/",
+    "protocol/",
+    "platforms/",
+    "lib/",
+    "audit/",
+    "routes/",
+    "chain/",
+    "scripts/patch-idl.mjs",
+    "scripts/doctor.mjs",
+    "start.bat",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sentinel-Bluebuilder/sentinel-node-tester-solana.git"
+  },
+  "keywords": [
+    "sentinel",
+    "dvpn",
+    "solana",
+    "anchor",
+    "node-tester",
+    "audit",
+    "bandwidth"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "better-sqlite3": "^12.9.0",
+    "bs58": "^4.0.1",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "tweetnacl": "^1.0.3"
+  }
+}

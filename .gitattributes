@@ -1,0 +1,37 @@
+# Default: text files normalized to LF in repo, restored to native on checkout
+* text=auto eol=lf
+
+# Source code — always LF (Linux/macOS will run these)
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Shell scripts — must be LF or they break under bash
+*.sh   text eol=lf
+
+# Windows-only scripts — preserve CRLF
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+*.vbs  text eol=crlf
+
+# Binaries — never touch
+*.exe  binary
+*.dll  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.dat  binary
+*.zip  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary

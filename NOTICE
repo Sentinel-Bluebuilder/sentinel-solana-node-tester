@@ -1,0 +1,17 @@
+Sentinel Node Tester (Solana)
+
+The tester's own code is under the Sentinel dVPN License (LICENSE).
+
+The following files come from, or are derived from, the upstream Sentinel dVPN programs
+(Copyright (c) 2026 Capybara Publishing LTD, a subsidiary of Nordic DApps Inc.):
+
+  chain/idl/dvpn.source.json   the dvpn program IDL, vendored byte for byte from upstream
+                               (sentinel-programs/idl/dvpn.json at cb33092e)
+  chain/idl/dvpn.devnet.json   derived from dvpn.source.json by scripts/patch-idl.mjs
+
+The Sentinel dVPN License is not an OSI-approved licence; read it in the upstream repository
+before reusing these files.
+
+The client container (docker/client.Dockerfile) is built locally from upstream sentinel-dvpnd /
+sentinel-dvpn binaries that this repository does not ship; those binaries are under the same
+Sentinel dVPN License.

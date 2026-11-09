@@ -1,0 +1,3145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel — Live Node Testing</title>
+  <link rel="stylesheet" href="/sentinel.css">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'light';</script>
+  <style>
+    :root {
+      --text-primary: var(--text);
+      --text-secondary: var(--text-dim);
+      --glass-border: var(--border);
+      --accent-green: var(--green);
+      --accent-red: var(--red);
+      --accent-orange: var(--yellow);
+    }
+
+    body { min-height: 100vh; overflow-x: hidden; }
+    body.boot-pending * { transition: none !important; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+    .glass-panel {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+    }
+
+    /* ─── Floating top-right (About + theme) ─── */
+    .top-right-controls {
+      position: fixed; top: 12px; right: 16px; z-index: 500;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .top-icon-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); text-decoration: none;
+    }
+    .top-icon-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .theme-toggle-btn {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    /* ─── Page layout ─── */
+    /* main is a viewport-tall flex column: the fixed-height blocks above the
+       data-grid (header, stats, current-batch, search) take their natural
+       height, then .data-grid flexes to fill whatever vertical space is left
+       so the page fits the viewport with no scroll into empty space below the
+       table. The table-wrap and log body scroll internally instead. */
+    main {
+      max-width: 1600px; margin: 0 auto;
+      padding: 28px 24px 24px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Live-banner / status row (kept for status var references) */
+    .pulse-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .pulse-dot.running { background: var(--green); box-shadow: 0 0 0 0 rgba(0,200,120,0.5); animation: pulse 1.6s infinite; }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(0,200,120,0.5); }
+      70%  { box-shadow: 0 0 0 8px rgba(0,200,120,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,200,120,0); }
+    }
+
+    /* ─── Page header ─── */
+    .live-page-header {
+      display: flex; align-items: center; gap: 14px;
+      margin: 0 0 18px 0;
+    }
+    .live-page-header-left { display: flex; align-items: center; gap: 14px; flex: 1 1 auto; min-width: 0; }
+    .brand-logo { width: 26px; height: 26px; flex-shrink: 0; color: var(--accent); }
+    /* TEST RUN pill — sits next to the page title when a test-run audit is active */
+    .test-run-badge {
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 10px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--bg-card-solid);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      font-family: var(--font-display);
+    }
+    /* TEST RUN banner — full-width, static accent strip. Shown when a test-run
+       audit is active so the public can't mistake skipped rows for real
+       measurements. No animation — keeps the page calm. */
+    .test-run-banner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 16px;
+      margin-bottom: 22px;
+      background: var(--accent);
+      color: var(--bg-card-solid);
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border-bottom: 2px solid var(--accent);
+    }
+    .test-run-banner.is-visible { display: flex; }
+    .live-page-header-right {
+      display: flex; align-items: center; gap: 0;
+      flex: 0 0 auto;
+    }
+    .live-header-stat {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 0 16px;
+      align-items: center; text-align: center;
+    }
+    .live-header-stat-label {
+      font-family: var(--font-display);
+      font-size: 9px; letter-spacing: 1.5px;
+      color: var(--text-muted); text-transform: uppercase;
+      font-weight: 600;
+      text-align: center;
+    }
+    .live-header-stat-value {
+      font-family: var(--font-display);
+      font-size: 14px; letter-spacing: 0.5px;
+      color: var(--text); font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+    .live-header-divider {
+      width: 1px; height: 28px; background: var(--border);
+      align-self: center;
+    }
+    @media (max-width: 900px) {
+      .live-page-header-right { display: none; }
+    }
+    .live-page-title {
+      font-family: var(--font-display);
+      font-size: 22px; font-weight: 700;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--text); margin: 0; line-height: 1.1;
+      display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+    #liveModeBadge { align-items: center; line-height: 1; margin-left: 0 !important; }
+    .live-page-sub {
+      font-family: var(--font-display);
+      font-size: 11px; letter-spacing: 1.2px;
+      color: var(--text-dim); text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ─── Stat tiles (mirror admin dev panel) ─── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 600px)  { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 4px;
+      min-height: 64px;
+      align-items: center; justify-content: center;
+      text-align: center;
+    }
+    .stat-label {
+      font-family: var(--font-display);
+      font-size: 10px;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      text-align: center;
+    }
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.05;
+      text-align: center;
+    }
+    .stat-value.pass { color: var(--green); }
+    .stat-value.fail { color: var(--red); }
+    .stat-value.warn { color: var(--yellow); }
+    .stat-sub {
+      font-family: var(--font-display);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.6px;
+      text-align: center;
+    }
+
+    /* ─── Current Batch panel ─── */
+    #cbCard { margin-bottom: 16px; }
+
+    .cb-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .cb-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+    .cb-meta {
+      font-family: var(--font-display);
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cb-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .cb-count {
+      font-family: var(--font-display);
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .cb-progress-track {
+      flex: 1;
+      min-width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .cb-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    .cb-eta {
+      font-family: var(--font-display);
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .cb-snapshot-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      font-family: var(--font-display);
+    }
+    .cb-snap-item { color: var(--text-dim); }
+    .cb-snap-pass { color: var(--green); font-weight: 700; }
+    .cb-snap-slow { color: var(--yellow); font-weight: 700; }
+    .cb-snap-fail { color: var(--red); font-weight: 700; }
+    .cb-snap-skip { color: var(--text-muted); font-weight: 700; }
+    .cb-complete-msg {
+      font-family: var(--font-display);
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 8px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+
+    /* ─── Data grid — identical to admin dev view ─── */
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 16px;
+      /* Fill the remaining viewport height left by the blocks above instead of
+         a fixed 640px. min-height keeps the grid usable on short viewports
+         (the page may scroll only then); min-height:0 on the flex child lets
+         the inner table-wrap / log body own the overflow. */
+      flex: 1 1 auto;
+      min-height: 360px;
+    }
+
+    .table-container { display: flex; flex-direction: column; overflow: hidden; height: 100%; min-height: 0; }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    /* overflow-x pinned to hidden: with only overflow-y set, the spec computes
+       overflow-x to `auto`, which made the results table scroll sideways. The
+       table is meant to fit its column (cells ellipsis-truncate); only the log
+       panel scrolls horizontally. */
+    .table-wrap { overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; min-height: 0; padding: 0 8px 8px 8px; margin-top: 8px; }
+
+    table { width: 100%; border-collapse: separate; border-spacing: 0 4px; table-layout: fixed; }
+    td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    td.td-num, th.th-num { font-variant-numeric: tabular-nums; text-align: right; }
+    td.td-moniker { max-width: 180px; }
+    td.td-error { max-width: 240px; }
+    /* Tighten the gap between Peers (col 6) and Speed (col 7) */
+    table thead th:nth-child(6),
+    table tbody td:nth-child(6) { padding-right: 2px; }
+    table thead th:nth-child(7),
+    table tbody td:nth-child(7) { padding-left: 2px; }
+
+    .pager .btn-paginate {
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .pager .btn-paginate:disabled { opacity: 0.4; cursor: not-allowed; }
+    .pager .btn-paginate:not(:disabled):hover { border-color: var(--border-hover); }
+
+    /* Opaque header band — covers BOTH the 4px row-gap above each th (page bg
+       bleed when border-spacing: 0 4px exposes empty stripe at the top) AND
+       the 4px row-gap below the header row that body rows scroll through. The
+       box-shadow draws a solid stripe both upward and downward in the same
+       color as --bg-card-solid; the bottom stripe is what hides scrolling rows
+       passing under the sticky header. */
+    thead { background: var(--bg-card-solid); }
+    thead tr { background: var(--bg-card-solid); }
+    th {
+      text-align: left;
+      padding: 8px 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+      position: sticky; top: 0;
+      background: var(--bg-card-solid) !important;
+      /* Single header separator. The box-shadow draws the only divider line
+         (and fills the border-spacing gap above/below it) so it survives the
+         sticky-header scroll; a plain border-bottom here would double it.
+         The solid fill (-6px / +5px) and the 1px border (+5px → +6px) share an
+         edge at exactly 5px, so there is no 1px background sliver between the
+         fill-end and the border — one clean line below the header row. The
+         downward fill is capped at 5px (< the 4px+ row body offset would show)
+         so it covers the border-spacing gap and meets the divider with no seam. */
+      box-shadow:
+        0 -6px 0 0 var(--bg-card-solid),
+        0  5px 0 0 var(--bg-card-solid),
+        0  6px 0 0 var(--border);
+      z-index: 10;
+    }
+
+    /* DEFINITIVE single-line header — matches admin.html's working results table.
+       The outset box-shadow above kept rendering TWO lines because the 4px
+       border-spacing gap below the sticky header is a second element no shadow
+       tuning fully hides. Instead: an INSET shadow paints the 1px divider exactly
+       AT the th's bottom edge, and row gaps come from a transparent td
+       bottom-border (background-clip:padding-box keeps the card out of the gap)
+       rather than border-spacing — so there is no 4px gap directly under the
+       header to render a second line. Scoped to .table-wrap (results table only). */
+    .table-wrap table { border-spacing: 0; }
+    .table-wrap thead th { box-shadow: inset 0 -1px 0 var(--border); }
+    .table-wrap tbody td { border-bottom: 4px solid transparent; background-clip: padding-box; }
+
+    td {
+      padding: 6px 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      vertical-align: middle;
+      background: var(--bg-card);
+    }
+
+    tr td:first-child { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+    tr td:last-child  { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+    tr:hover td { background: var(--bg-card-solid); }
+
+    .badge {
+      padding: 3px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 700;
+      font-family: var(--font-display); letter-spacing: 0.5px;
+    }
+    .badge-pass { background: var(--green-dim); color: var(--text); border: 1px solid var(--border-hover); }
+    .badge-slow { background: var(--yellow-dim); color: var(--text); border: 1px solid var(--border-hover); }
+    .badge-fail { background: var(--red-dim); color: var(--text-dim); border: 1px solid var(--border); }
+    .badge-skip { background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border); }
+    .badge-wg   { background: var(--bg-input); color: var(--text-dim); padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .badge-v2   { background: var(--bg-input); color: var(--text-dim); padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .badge-dry  { background: var(--bg-input); color: var(--text); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; border: 1px solid var(--border-hover); margin-left: 4px; letter-spacing: 0.5px; }
+
+    .row-copy-btn {
+      background: var(--bg-input); color: var(--text-dim);
+      border: 1px solid var(--border); border-radius: var(--radius-xs);
+      font-family: var(--font-mono); font-size: 11px;
+      padding: 2px 7px; cursor: pointer; line-height: 1;
+      transition: all 0.12s ease;
+    }
+    .row-copy-btn:hover { border-color: var(--text); color: var(--text); background: var(--bg-card); }
+    .row-copy-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    /* ─── Log panel — fills its grid cell, scroll inside ─── */
+    .log-container {
+      display: flex; flex-direction: column; overflow: hidden;
+      height: 100%; min-height: 0;
+    }
+    .logs {
+      flex: 1 1 auto; min-height: 0;
+      /* Vertical scroll only. The row layout below is responsible for fitting
+         every line inside this width — never a horizontal scrollbar. */
+      overflow-y: auto; overflow-x: hidden; padding: 8px 0;
+      display: flex; flex-direction: column; gap: 0;
+      font-family: var(--font-mono); font-size: 11px;
+      min-width: 0;
+    }
+    /* ── Two-line terminal record ──
+       The narrow 380px log column can't show time + status + transport +
+       country + address + speed on ONE line without shredding every field to
+       2-3 chars. So each node event is a vertical record:
+         line 1 (.log-head):   TIME  TAG  XPORT  CC ················ RESULT
+         line 2 (.log-detail): node-address · moniker   (or message)
+       The head columns line up vertically across rows (terminal feel); the
+       detail line gets the full panel width so the address stays readable. */
+    .log-entry {
+      padding: 5px 12px 6px; background: transparent;
+      border-radius: 0; border-left: 2px solid transparent;
+      color: var(--text); animation: slideIn 0.15s ease;
+      display: flex; flex-direction: column; gap: 1px;
+      font-variant-numeric: tabular-nums;
+      flex: 0 0 auto;
+      width: 100%; min-width: 0;
+      line-height: 1.35;
+      overflow: hidden;
+      box-shadow: inset 0 -1px 0 var(--border);  /* hairline row separator */
+      transition: background 0.12s ease;
+    }
+    .log-entry.log-ok  { border-left-color: var(--green-dim); }
+    .log-entry.log-err { border-left-color: var(--red); background: var(--red-dim); }
+    .log-entry.log-warn{ border-left-color: var(--yellow-dim); }
+    .log-entry:hover { background: var(--bg-input); }
+    .log-entry.log-err:hover { background: var(--red-dim); }
+
+    /* ── HEAD: fixed-column GRID so every field aligns vertically across rows,
+       terminal-style. Columns never shift, whether SKIP is present or not.
+         TIME │ TAG │ XPORT │ CC │ ……RESULT (1fr, right-aligned) */
+    .log-head {
+      display: grid;
+      grid-template-columns: 42px 34px 22px 24px 1fr;
+      align-items: center; column-gap: 10px;
+      width: 100%; min-width: 0;
+    }
+    /* DETAIL: hangs under the TAG column so the address sits in a clean indented
+       band directly below — visually tied to its head, not floating mid-row. */
+    .log-detail {
+      display: flex; align-items: baseline; gap: 7px;
+      width: 100%; min-width: 0;
+      padding-left: 51px; margin-top: 1px;
+    }
+
+    .log-entry .log-time {
+      color: var(--text-muted);
+      font-size: 9px; letter-spacing: 0; font-variant-numeric: tabular-nums;
+      opacity: 0.65;
+    }
+    .log-entry .log-tag {
+      font-family: var(--font-display);
+      font-size: 8px; font-weight: 700; letter-spacing: 0.3px;
+      padding: 2px 0; border-radius: 3px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim);
+      width: 34px; text-align: center;
+      box-sizing: border-box;
+    }
+    .log-entry .log-tag.tag-batch { color: var(--accent); border-color: var(--accent-dim); background: var(--accent-dim); }
+    .log-entry .log-tag.tag-iter  { color: var(--text-dim); border-color: var(--border-hover); }
+    .log-entry .log-tag.tag-node  { color: var(--text-muted); border-color: var(--border); }
+    .log-entry .log-tag.tag-fail  { color: var(--red-bright); border-color: var(--red-dim); background: var(--red-dim); }
+    .log-entry .log-tag.tag-pass  { color: var(--green-bright); border-color: var(--green-dim); background: var(--green-dim); }
+    .log-entry .log-tag.tag-warn  { color: var(--yellow-bright); border-color: var(--yellow-dim); background: var(--yellow-dim); }
+    .log-entry .log-tag.tag-sys   { color: var(--text-muted); }
+    /* SKIP marker: a small inline glyph on the head RESULT slot, NOT a grid
+       column (kept out of the grid so it can't shove the other fields). */
+    .log-entry .skip-flag {
+      font-family: var(--font-display); font-size: 7.5px; font-weight: 700;
+      letter-spacing: 0.6px; color: var(--yellow-bright);
+      border: 1px solid var(--yellow-dim); border-radius: 4px;
+      padding: 2px 7px; flex: none; background: var(--yellow-dim);
+      line-height: 1; white-space: nowrap;
+    }
+
+    /* Transport: compact mono chip */
+    .log-entry .log-xport {
+      font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+      color: var(--text-muted); text-align: center;
+      letter-spacing: 0.4px; opacity: 0.75;
+    }
+    .log-entry .log-cc {
+      font-family: var(--font-display);
+      font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+      color: var(--text-muted);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    /* Country flag glyph — small, crisp, subtly rounded, sits in the CC column */
+    .log-entry .log-cc .flag-img {
+      width: 16px; height: 11px; border-radius: 2px; object-fit: cover;
+      box-shadow: inset 0 0 0 1px var(--border); display: block;
+    }
+
+    /* RESULT — fills the final grid column, right-aligned verdict (speed/err). */
+    .log-entry .log-result {
+      min-width: 0; justify-self: end;
+      text-align: right; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    }
+    /* SKIP result wrapper must NOT clip — the chip is a fixed-width badge, not
+       truncatable text. overflow:hidden on .log-result was shearing it off. */
+    .log-entry .log-result.log-skip {
+      overflow: visible; display: inline-flex;
+      justify-content: flex-end; align-items: center;
+    }
+    /* mbps verdict: number is the hero, unit hugs it as a small dim suffix.
+       tabular-nums keeps digit columns aligned row-to-row; baseline alignment
+       so the unit sits ON the number's baseline, not floating above it. */
+    .log-entry .log-mbps {
+      color: var(--green-bright); letter-spacing: -0.1px;
+      display: inline-flex; align-items: baseline;
+      justify-content: flex-end; gap: 3px;
+    }
+    .log-entry .log-mbps .num {
+      font-weight: 600; font-size: 10px; font-variant-numeric: tabular-nums;
+    }
+    .log-entry .log-mbps .unit {
+      font-weight: 500; font-size: 7.5px; color: var(--text-muted);
+      letter-spacing: 0.3px; text-transform: uppercase; opacity: 0.6;
+    }
+    .log-entry .log-mbps.slow { color: var(--yellow-bright); }
+    .log-entry .log-mbps.dead { color: var(--red-bright); }
+    .log-entry .log-err-code {
+      color: var(--red-bright); font-weight: 600; font-size: 9px; letter-spacing: 0.3px;
+      font-family: var(--font-mono); opacity: 0.92;
+    }
+
+    /* DETAIL line — node address is the anchor identity. Mono, dim so the
+       speed/verdict stays the hero; message/moniker truncate first. */
+    .log-entry .log-id {
+      flex: 0 0 auto; min-width: 0;
+      display: inline-flex; align-items: baseline; gap: 3px;
+      overflow: hidden;
+    }
+    .log-entry .addr-copy {
+      color: var(--text-dim); font-size: 10px; font-family: var(--font-mono);
+      letter-spacing: -0.2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      min-width: 0; cursor: pointer;
+    }
+    .log-entry .addr-copy:hover { color: var(--accent); }
+    .log-entry .addr-explorer { flex: none; opacity: 0.4; font-size: 9.5px; }
+    .log-entry .addr-explorer:hover { opacity: 1; }
+    .log-entry .log-moniker {
+      color: var(--text-muted); font-weight: 400; font-size: 9.5px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 0 1 auto; min-width: 0;
+    }
+    .log-entry .log-msg {
+      color: var(--text-dim); font-size: 9.5px;
+      flex: 1 1 auto; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .log-detail .log-copy { flex: none; }
+    .log-entry .log-copy {
+      margin-left: auto; flex-shrink: 0;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 9px; line-height: 1;
+      padding: 2px 5px; border-radius: 4px; cursor: pointer;
+      transition: border-color 0.12s ease, color 0.12s ease;
+    }
+    .log-entry .log-copy:hover { border-color: var(--border-hover); color: var(--text); background: var(--bg-card); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ─── Toast ─── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-card-solid); color: var(--text);
+      padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 12px; font-family: var(--font-display); letter-spacing: 0.5px;
+      z-index: 9000; opacity: 0; pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ─── Testing Paused overlay ─── */
+    .paused-overlay {
+      position: fixed; inset: 0; z-index: 8000;
+      background: var(--bg);
+      display: none;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 40px 24px;
+    }
+    .paused-overlay.show { display: flex; }
+    .paused-stack {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 28px;
+      max-width: 640px;
+    }
+    .paused-logo-wrap {
+      position: relative;
+      width: 140px; height: 140px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .paused-logo-wrap::before {
+      content: '';
+      position: absolute; inset: -12px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      opacity: 0.6;
+    }
+    .paused-logo-wrap::after {
+      content: '';
+      position: absolute; inset: -24px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      opacity: 0.25;
+    }
+    .paused-logo {
+      width: 140px; height: 140px; border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      position: relative; z-index: 1;
+    }
+    .paused-pause-badge {
+      position: absolute; right: -6px; bottom: -6px; z-index: 2;
+      width: 46px; height: 46px; border-radius: 50%;
+      background: var(--yellow);
+      color: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      border: 3px solid var(--bg);
+      box-shadow: 0 0 0 0 rgba(255, 200, 0, 0.45);
+      animation: pulse 1.8s infinite;
+    }
+    .paused-pause-badge svg { width: 18px; height: 18px; display: block; }
+    .paused-title {
+      font-family: var(--font-display);
+      font-size: 44px; font-weight: 800;
+      letter-spacing: 4px; text-transform: uppercase;
+      color: var(--text);
+      margin: 0; line-height: 1.1;
+    }
+    .paused-body {
+      font-family: var(--font-display);
+      font-size: 17px; color: var(--text-dim);
+      max-width: 560px; line-height: 1.65; margin: 0;
+      letter-spacing: 0.3px;
+    }
+    .paused-sub {
+      font-family: var(--font-display);
+      font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    @media (max-width: 640px) {
+      .paused-title { font-size: 30px; letter-spacing: 2.5px; }
+      .paused-body { font-size: 14px; }
+      .paused-logo, .paused-logo-wrap { width: 110px; height: 110px; }
+      .paused-pause-badge { width: 38px; height: 38px; }
+      .paused-pause-badge svg { width: 14px; height: 14px; }
+    }
+
+    /* Mobile desktop gate */
+    .mobile-gate { display: none; }
+    .mobile-gate-inner { max-width: 420px; padding: 32px 24px; text-align: center; }
+    .mobile-gate-logo {
+      width: 96px; height: 96px; border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      margin: 0 auto 20px;
+      display: block;
+    }
+    .mobile-gate-title {
+      font-family: var(--font-display); font-size: 22px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; color: var(--text);
+      margin: 0 0 12px;
+    }
+    .mobile-gate-body { color: var(--text-dim); font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
+    .mobile-gate-url {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text);
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px; margin: 0 auto 14px; display: inline-block;
+    }
+    .mobile-gate-link {
+      font-size: 11px; color: var(--text-dim); text-decoration: underline;
+    }
+    @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+      .mobile-gate {
+        display: flex; position: fixed; inset: 0; z-index: 9999;
+        background: var(--bg); align-items: center; justify-content: center;
+      }
+      html, body { overflow: hidden !important; }
+      body > :not(.mobile-gate) { visibility: hidden; }
+    }
+  </style>
+</head>
+
+<body class="boot-pending">
+  <!-- Testing Paused overlay -->
+  <div class="paused-overlay show" id="pausedOverlay" aria-hidden="false" role="status" aria-live="polite">
+    <div class="paused-stack">
+      <div class="paused-logo-wrap">
+        <img src="/logo.jpg" alt="Sentinel" class="paused-logo">
+        <span class="paused-pause-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" focusable="false">
+            <rect x="6"  y="4" width="4" height="16" rx="1.5"/>
+            <rect x="14" y="4" width="4" height="16" rx="1.5"/>
+          </svg>
+        </span>
+      </div>
+      <p class="paused-sub">Sentinel Node Tester</p>
+      <h1 class="paused-title">Testing Has Been Paused</h1>
+      <p class="paused-body">Live testing will resume automatically when a test is started</p>
+    </div>
+  </div>
+
+  <!-- Mobile desktop gate -->
+  <div class="mobile-gate" id="mobileGate" aria-hidden="true">
+    <div class="mobile-gate-inner">
+      <img src="/logo.jpg" alt="Sentinel" class="mobile-gate-logo">
+      <h1 class="mobile-gate-title">View on Desktop</h1>
+      <p class="mobile-gate-body">Sentinel Node Tester is desktop-only for now — the live view needs a wide screen. Open this page on a desktop browser.</p>
+      <div class="mobile-gate-url" id="mobileGateUrl">sentinel-p2p.com/live</div>
+      <a class="mobile-gate-link" href="https://sentinel.co">Back to sentinel.co</a>
+    </div>
+  </div>
+
+  <!-- Floating top-right -->
+  <div class="top-right-controls">
+    <button type="button" onclick="openAboutModal()" class="top-icon-btn" title="About" aria-label="About" style="background:transparent;border:1px solid var(--border);cursor:pointer;padding:0;color:inherit;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+    </button>
+    <button id="btnTheme" class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+      <svg id="themeIconDark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      <svg id="themeIconLight" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+    </button>
+  </div>
+
+  <main>
+    <!-- TEST RUN banner — full-width strobe so the public can't miss that
+         this is a test-run audit (skipped rows, no real measurements). -->
+    <div id="testRunBanner" class="test-run-banner" role="alert" aria-live="polite">
+      <span>TEST RUN — SIMULATED AUDIT (NO REAL MEASUREMENTS)</span>
+    </div>
+    <!-- Page header -->
+    <div class="live-page-header">
+      <div class="live-page-header-left">
+        <svg width="26" height="26" viewBox="0 0 30 31" fill="none" xmlns="http://www.w3.org/2000/svg" class="brand-logo" aria-hidden="true">
+          <path d="M27.3966 1.4387C27.7459 1.4387 28.0281 1.72093 28.0281 2.07017V12.1372V12.7626C28.0362 14.0032 28.0464 15.5525 27.8291 17.1951C27.5773 19.1099 27.0778 20.6672 26.3103 21.9566C23.8068 26.1535 19.3093 29.2297 15.0879 29.6399C15.0676 29.6419 15.0473 29.6439 15.027 29.6439C15.0067 29.6439 14.9864 29.6439 14.9661 29.6399C10.7407 29.2256 6.24323 26.1515 3.74372 21.9566C2.97214 20.6672 2.47671 19.1078 2.22493 17.1951C2.0097 15.5525 2.01986 14.0053 2.03001 12.7626V12.1372L2.03204 2.07017C2.03204 1.72093 2.31427 1.4387 2.66351 1.4387H27.3966ZM27.3966 0.17981H2.66148C1.61985 0.17981 0.771119 1.02854 0.771119 2.07017V12.7565C0.758936 13.9606 0.746754 15.6154 0.974166 17.3576C1.25031 19.4469 1.80057 21.1606 2.65945 22.6002C3.97926 24.8134 5.82292 26.7667 7.99349 28.253C10.1844 29.7515 12.5458 30.6632 14.826 30.8886C14.891 30.8967 14.958 30.9008 15.025 30.9008C15.092 30.9008 15.157 30.8967 15.224 30.8886C17.5022 30.6632 19.8636 29.7536 22.0545 28.2551C24.225 26.7688 26.0707 24.8134 27.3926 22.6002C28.2535 21.1586 28.8037 19.4449 29.0779 17.3596C29.3053 15.6337 29.2951 14.0418 29.287 12.7606V12.1332V2.0722C29.287 1.02854 28.4383 0.18184 27.3966 0.18184V0.17981Z" fill="currentColor"/>
+          <path d="M25.6792 14.1846C25.864 14.3247 26.1279 14.1927 26.1279 13.9612L26.1218 12.6881V3.61598C26.1239 3.45963 25.998 3.33374 25.8416 3.33374H4.21715C4.0608 3.33374 3.93491 3.45963 3.93491 3.61598V9.1957C3.93491 9.43529 3.98974 9.67083 4.09735 9.88402C4.20496 10.0972 4.35928 10.284 4.55217 10.4262L20.8182 22.5907C20.9604 22.6963 20.9705 22.9013 20.8406 23.0232C20.5401 23.3074 20.2233 23.5734 19.8944 23.8252C19.7929 23.9024 19.6548 23.9024 19.5553 23.8272L4.38365 12.4587C4.19887 12.3206 3.93491 12.4505 3.93491 12.684C3.93491 14.6333 3.76232 18.2699 5.40091 21.0557C7.23036 24.1684 10.3715 26.6252 13.604 27.4212C14.071 27.5349 14.538 27.6161 15.005 27.6587C15.0233 27.6608 15.0416 27.6608 15.0578 27.6587C17.1736 27.4679 19.3259 26.5014 21.1736 25.0415C21.6365 24.6739 22.0812 24.278 22.5035 23.8536C23.336 23.0151 24.0629 22.077 24.6619 21.0597C25.2041 20.1399 25.5472 19.1267 25.7645 18.1135C25.8132 17.8942 25.8538 17.6729 25.8904 17.4495C25.9858 16.8688 25.7502 16.282 25.2812 15.9308L11.5086 5.63223C11.2933 5.46979 11.405 5.12664 11.6791 5.12664H13.5025C13.5634 5.12664 13.6223 5.14695 13.673 5.1835L25.6812 14.1866L25.6792 14.1866L25.6792 14.1846Z" fill="currentColor"/>
+        </svg>
+        <div class="pulse-dot" id="headerDot"></div>
+        <div>
+          <h1 class="live-page-title">
+            Sentinel dVPN Node Test
+            <span id="liveModeBadge" style="display:none;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border:1.5px solid var(--accent);color:var(--accent);border-radius:4px;margin-left:10px;vertical-align:middle">
+              <span id="liveModeBadgeLabel">—</span>
+            </span>
+            <span id="testRunBadge" class="test-run-badge" style="display:none">TEST RUN</span>
+          </h1>
+          <div class="live-page-sub" id="liveModeSub">Live public testing — Sentinel dVPN network</div>
+        </div>
+      </div>
+      <div class="live-page-header-right" aria-label="Network baseline stats">
+        <div class="live-header-stat">
+          <div class="live-header-stat-label">Server Baseline</div>
+          <div class="live-header-stat-value" id="hdrBaseline">—</div>
+        </div>
+        <div class="live-header-divider"></div>
+        <div class="live-header-stat">
+          <div class="live-header-stat-label">Network Median</div>
+          <div class="live-header-stat-value" id="hdrNetworkMedian">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch stat tiles (mirror admin dev panel) -->
+    <div class="stats-grid" id="liveStatsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Tested</div>
+        <div class="stat-value" id="lsTested">0</div>
+        <div class="stat-sub" id="lsTestedSub">no data yet</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Failed</div>
+        <div class="stat-value" id="lsTotalFailed">0</div>
+        <div class="stat-sub" id="lsTotalFailedPct">0% failure rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pass 10 Mbps SLA</div>
+        <div class="stat-value" id="lsPassedSLA">0</div>
+        <div class="stat-sub" id="lsPassedSLAPct">0% of connected</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dead Plan Nodes</div>
+        <div class="stat-value" id="lsDeadPlan">0</div>
+        <div class="stat-sub" id="lsDeadPlanPct">No plan failures</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Not Online</div>
+        <div class="stat-value" id="lsNotOnline">0</div>
+        <div class="stat-sub" id="lsNotOnlineSub">0 nodes offline</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pass Rate</div>
+        <div class="stat-value" id="lsPassRate">0%</div>
+        <div class="stat-sub">connected / tested</div>
+      </div>
+    </div>
+
+    <!-- Broadcast off notice -->
+    <div id="broadcastOffNotice" style="display:none;padding:14px 20px;border:1px solid var(--border);background:var(--bg-card);border-radius:var(--radius-sm);font-family:var(--font-display);font-size:12px;font-weight:600;letter-spacing:0.5px;color:var(--text-dim);text-align:center;">
+      Live broadcast is off — showing last completed run
+    </div>
+
+    <!-- Current Batch panel -->
+    <div class="glass-panel" id="cbCard" style="padding:18px 22px;display:flex;flex-direction:column;gap:14px;">
+      <div class="cb-header-row">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="cb-title">Current Batch</span>
+          <div class="pulse-dot" id="cbDot"></div>
+        </div>
+      </div>
+      <div class="cb-progress-row">
+        <span class="cb-count" id="cbCount">0 / 0 nodes tested</span>
+        <div class="cb-progress-track">
+          <div class="cb-progress-fill" id="cbProgressFill"></div>
+        </div>
+        <span class="cb-eta" id="cbEta" style="font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:80px;text-align:right">ETA —</span>
+      </div>
+      <div class="cb-snapshot-row">
+        <span class="cb-snap-item">Batch size: <strong id="cbSnapshot">—</strong></span>
+        <span class="cb-snap-item">Passed SLA: <strong class="cb-snap-pass" id="cbPassed">0</strong></span>
+        <span class="cb-snap-item">Slow: <strong class="cb-snap-slow" id="cbSlow">0</strong></span>
+        <span class="cb-snap-item">Failed: <strong class="cb-snap-fail" id="cbFailed">0</strong></span>
+        <span class="cb-snap-item" id="cbSkippedWrap" style="display:none">Skipped: <strong class="cb-snap-skip" id="cbSkipped">0</strong></span>
+      </div>
+      <div class="cb-complete-msg" id="cbCompleteMsg"></div>
+    </div>
+
+    <!-- Search bar — filters dVPN Node Connections by moniker, address, country, or city -->
+    <div class="glass-panel" id="liveSearchBar" style="padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:11px;letter-spacing:1.2px;color:var(--text-muted);font-weight:600;">SEARCH</span>
+      <input
+        type="search"
+        id="liveSearchInput"
+        placeholder="Filter nodes by moniker, address, country, or city…"
+        autocomplete="off"
+        spellcheck="false"
+        style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:7px 10px;font-size:12px;outline:none;"
+      />
+      <button
+        type="button"
+        id="liveSearchClear"
+        onclick="clearLiveSearch()"
+        style="display:none;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text-muted);padding:6px 10px;font-size:11px;letter-spacing:0.5px;cursor:pointer;"
+      >CLEAR</button>
+    </div>
+
+    <!-- Data grid — dVPN Node Connections + Live Log -->
+    <div class="data-grid">
+      <div class="glass-panel table-container">
+        <div class="panel-header">
+          <div class="panel-title">dVPN Node Connections</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span id="filterBtns" style="display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:5px;overflow:hidden;font-size:10px;letter-spacing:0.5px">
+              <span onclick="setFilter('all')"  id="filterAll"  style="padding:3px 8px;background:var(--bg-input);color:var(--text);font-weight:600;cursor:pointer">ALL</span>
+              <span onclick="setFilter('pass')" id="filterPass" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">PASS</span>
+              <span onclick="setFilter('fail')" id="filterFail" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">FAIL</span>
+              <span onclick="setFilter('slow')" id="filterSlow" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">SLOW</span>
+              <span onclick="setFilter('wg')"   id="filterWg"   title="WireGuard + AmneziaWG" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">WG</span>
+              <span onclick="setFilter('v2')"   id="filterV2"   title="V2Ray + Xray" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">V2</span>
+              <span onclick="setFilter('ovpn')" id="filterOvpn" title="OpenVPN" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">OVPN</span>
+              <span onclick="setFilter('hy2')"  id="filterHy2"  title="Hysteria2" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">HY2</span>
+            </span>
+            <span style="font-size:11px;color:var(--text-secondary)" id="resultsCountLabel">0 Entries</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Transport</th>
+                <th>Moniker</th>
+                <th>Node</th>
+                <th>Country</th>
+                <th>City</th>
+                <th style="text-align:center">Peers</th>
+                <th style="text-align:right">Speed</th>
+                <th style="text-align:right">Baseline</th>
+                <th style="text-align:center">Result</th>
+                <th style="text-align:center">Log</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+          <div id="liveResultsPager" class="pager" style="display:none;align-items:center;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid var(--border)">
+            <button class="btn-paginate" id="liveResultsPrev" type="button">← Prev</button>
+            <span id="liveResultsPageInfo" style="color:var(--text-dim);font-size:11px"></span>
+            <button class="btn-paginate" id="liveResultsNext" type="button">Next →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel log-container">
+        <div class="panel-header">
+          <div class="panel-title">Live Log</div>
+        </div>
+        <div class="logs" id="logBody"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    'use strict';
+
+    // ─── Boot / theme ───
+    let _broadcastLive = false;
+    // True once /api/broadcast reports a live, broadcasting run. While this is
+    // false the page is PAUSED and the ONLY network traffic is the poll of
+    // /api/broadcast itself — we don't connect SSE or hit any work endpoint.
+    let _activeRun = false;
+    let _liveWorkConnected = false;
+    // When the last /api/broadcast poll fired. Lets the visibilitychange
+    // handler skip a redundant poll on a quick tab flick — it only catches up
+    // when the 10s interval may have been throttled during a long hidden spell.
+    let _lastBroadcastPollAt = 0;
+    const BROADCAST_POLL_MS = 10000;
+
+    // Fan out to the live-work endpoints — runs EXACTLY ONCE per paused→active
+    // transition. This is the "if active, then make the necessary calls" half of
+    // the single-poll gate: SSE stream, log backlog, full live-state, current
+    // batch, and header stats. While paused none of these fire.
+    async function connectLiveWork() {
+      if (_liveWorkConnected) return;
+      _liveWorkConnected = true;
+      rehydrateFromCache();   // instant cache paint (active-gated internally)
+      renderTable();
+      renderLiveStats();
+      connectSSE();
+      seedLogsFromRest();
+      await seedLiveStateFromRest();
+      loadCurrentBatch();
+      loadHeaderStats();
+    }
+
+    // Single authoritative poll. /api/broadcast returns { broadcastLive,
+    // activeRun }; activeRun gates ALL of /live's other traffic so a paused page
+    // makes just this one call (plus its 10s repeat) until a run actually starts.
+    async function checkBroadcastState() {
+      _lastBroadcastPollAt = Date.now();
+      try {
+        const r = await fetch('/api/broadcast', { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        const wasActive = _activeRun;
+        _broadcastLive = !!d.broadcastLive;
+        _activeRun = !!d.activeRun;
+        const notice = document.getElementById('broadcastOffNotice');
+        if (notice) notice.style.display = 'none';
+        if (_activeRun) {
+          // A run is live → connect the work endpoints once, then let the
+          // authoritative status drop the overlay and reveal the live page.
+          if (!wasActive) await connectLiveWork();
+          applyPauseFromState();
+        } else {
+          // Paused / no active run: overlay up, tear down the stream, and make
+          // NO further calls. Re-arm so the next active poll reconnects.
+          showPaused(true);
+          _liveWorkConnected = false;
+          if (_sse) { try { _sse.close(); } catch (_) {} _sse = null; }
+        }
+      } catch {}
+    }
+
+    // Pull the persisted log backlog over REST. Used when SSE was already
+    // open before broadcast flipped on, or as a defensive seed on visibility
+    // changes — the SSE init only fires on the initial connection.
+    // Replay a persisted log backlog into the panel without freezing the page.
+    // The panel only ever keeps the last MAX_LOG entries, so replaying more is
+    // wasted work — cap to the tail. _logSeeding suppresses appendLog's per-line
+    // scroll during the bulk loop and we scroll once at the end. appendLog
+    // prepends (newest on top), so replaying the tail oldest→newest leaves the
+    // newest line at the top. The server buffer is LOG_BUFFER_MAX (5000) lines.
+    function seedLogBacklog(lines) {
+      const body = document.getElementById('logBody');
+      if (!body || body.children.length !== 0) return;
+      if (!Array.isArray(lines) || !lines.length) return;
+      const tail = lines.length > MAX_LOG ? lines.slice(-MAX_LOG) : lines;
+      _logSeeding = true;
+      try {
+        for (const line of tail) appendLog(line);
+      } finally {
+        _logSeeding = false;
+      }
+      body.scrollTop = 0;
+    }
+
+    async function seedLogsFromRest() {
+      try {
+        const r = await fetch('/api/public/logs', { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!j || !Array.isArray(j.logs) || !j.logs.length) return;
+        seedLogBacklog(j.logs);
+      } catch {}
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.body.classList.remove('boot-pending');
+      const urlEl = document.getElementById('mobileGateUrl');
+      if (urlEl) urlEl.textContent = location.host + '/live';
+      applyThemeIcons();
+      // Wire the table controls up-front — cheap, and needed whenever data later
+      // appears (including after a resume flips broadcast on).
+      const _liveResultsPrev = document.getElementById('liveResultsPrev');
+      const _liveResultsNext = document.getElementById('liveResultsNext');
+      if (_liveResultsPrev) _liveResultsPrev.addEventListener('click', () => liveGoPage(-1));
+      if (_liveResultsNext) _liveResultsNext.addEventListener('click', () => liveGoPage(1));
+      const _liveSearchInput = document.getElementById('liveSearchInput');
+      if (_liveSearchInput) _liveSearchInput.addEventListener('input', (e) => setLiveSearch(e.target.value));
+      // NOTHING is painted before the server confirms an active run. We do NOT
+      // optimistically rehydrate from the localStorage snapshot: a snapshot
+      // persisted mid-run keeps status:'running' after the run is stopped
+      // (persistence halts on stop, so the cache never updates to a terminal
+      // state). Trusting it flashed the last run's rows behind the paused
+      // overlay AND triggered a /sdk-info fetch while paused. The overlay ships
+      // SHOWN in the markup, so a paused page stays fully covered and data-free
+      // from the very first paint until the poll below proves a run is live.
+      // One call. If a run is live, checkBroadcastState fans out via
+      // connectLiveWork (cache rehydrate → SSE + live-state + logs + batch +
+      // stats) and drops the overlay; if paused it paints nothing and the page
+      // stays on the overlay.
+      // DEMO mode (?demo): skip ALL live wiring — no broadcast poll, no SSE, no
+      // backlog seed — so the injected sample rows are the only thing on screen
+      // and the real stream can't overwrite them.
+      const _demoMode = new URLSearchParams(location.search).has('demo');
+      if (_demoMode) { seedLogDemo(); return; }
+
+      await checkBroadcastState();
+      // Re-poll the single endpoint so a run that STARTS while we're paused flips
+      // the page to live within ~10s — without any traffic in the meantime.
+      setInterval(checkBroadcastState, BROADCAST_POLL_MS);
+      // Re-checking on tab focus catches a run that started while the interval
+      // was throttled in the background — but DON'T fire on every tab switch.
+      // Skip when the interval already polled within the last cycle so a quick
+      // flick back to the tab makes no extra /api/broadcast call.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        if (Date.now() - _lastBroadcastPollAt >= BROADCAST_POLL_MS) checkBroadcastState();
+      });
+    });
+
+    // ─── Live-log formatting demo (only via ?demo) ───
+    function seedLogDemo() {
+      showPaused(false);
+      document.body.classList.remove('boot-pending');
+      const body = document.getElementById('logBody');
+      if (body) body.innerHTML = '';
+      const LONG_ERR = 'dial tcp 198.51.100.235:18613: i/o timeout — all 3 V2Ray transports failed (vless/tcp/tls, vmess/grpc, vmess/ws); node test timed out after 2 retries';
+      // Solana nodes have no moniker: the row shows the short address.
+      const LONG_ADDR = 'syK5MgA3FX3SYGd3f3pSBZ3aZbPNkAhg57nEJVHmAoA9';
+      const pass = (cc, x, m, a, s) => appendLog({ cat: 'node', status: 'pass', tag: 'PASS', transport: x, cc, moniker: m, addr: a, mbps: s });
+      const fail = (cc, x, m, a, e, msg) => appendLog({ cat: 'fail', status: 'fail', tag: 'FAIL', transport: x, cc, moniker: m, addr: a, errCode: e, msg });
+      const skip = (cc, x, m, a) => appendLog({ cat: 'node', status: 'ok', tag: 'NODE', transport: x, cc, moniker: m, addr: a, errCode: 'TEST_RUN_SKIP', msg: 'skipped — test run (no payment, no measurement)' });
+      // Oldest first; newest-first renderer flips them so the lifecycle line ends on top.
+      appendLog('[17/42] Testing juiM4A…A2vd…');
+      pass('ch', 'WireGuard', 'SUi4hs…M4Mx', 'SUi4hsoDBGNTqK3ckTxoSJCxnwArUBb76K8UU9VHM4Mx', 521.9);
+      fail('pl', 'V2Ray', 'Aa27vh…gtP8', 'Aa27vhEcyPLVb2zkSBZmLnDDRLdn6CQ3RPP4VsiZgtP8', 'UNREACHABLE', 'GET /v1/metadata timed out after 10s — node API did not answer (node offline or mid-restart)');
+      pass('kr', 'Xray', 'Kp91tf…y3iq', 'Kp91tftNexp6JjcxzYQ6w6gNLfu26HYRLihHURomy3iq', 0.4);
+      skip('br', 'OpenVPN', 'osJdH1…fh33', 'osJdH1sG1tCQxUHh3qmCJann9FTRBrxepAiBbtNgfh33');
+      pass('se', 'WireGuard', 'Uf3Z57…xWro', 'Uf3Z57X3WGoZkgEMs5MFh3X94kNyGW243XM9u22jxWro', 333.7);
+      fail('ru', 'V2Ray', 'N8BD4S…YRjF', 'N8BD4S9zexzBaUYsgDMVbJhbAf6JiddVkbgBFRzyYRjF', 'TUNNEL_NO_TRAFFIC', 'tunnel up but 0 bytes moved in 12s — node accepted the voucher, then dropped traffic');
+      pass('us', 'Hysteria2', 'hrY3gi…mtkf', 'hrY3giHAG3tTrjNSU971sfD8Kvp6srHyfrNeUStFmtkf', 24.8);
+      pass('ca', 'AmneziaWG', 'Pc6Gbg…bUhC', 'Pc6GbgUwWC7R9b8Nx8kDjBfFcsBX6aCpiycLrJpAbUhC', 245.1);
+      fail('in', 'Xray', 'Tbzdhk…ZWm4', 'Tbzdhkn1Rho7n1Yzu3zr7q9H8HCFZdotVqmbNQkDZWm4', 'INSUFFICIENT_BALANCE', 'wallet holds 0.08 tDVPN; each channel escrows at least 0.2 tDVPN');
+      pass('tr', 'WireGuard', 'syK5Mg…AoA9', LONG_ADDR, 908.9);
+      pass('fr', 'V2Ray', 'Shzy1G…NMKr', 'Shzy1GJeQKt2khD7AZN4t3iJzpHmwwaHfyGkMUjLNMKr', 61.0);
+      fail('au', 'WireGuard', 'b3YYB5…1JMP', 'b3YYB5b7p1AP3YxcvM4Cb81KQJ6RQEz8zLDuSqxo1JMP', 'SESSION_START_FAIL', 'WireGuard handshake timed out after 5s — no response from peer endpoint 203.0.113.44:51820 (3 retries)');
+      pass('jp', 'OpenVPN', 'Fh1ogY…rp8S', 'Fh1ogYb2hn9upJKNGqXRgsRjqeR4S2J4mKqoNft6rp8S', 156.4);
+      pass('sg', 'Hysteria2', 'NVN8Ka…KQGT', 'NVN8Ka17U1NFLJhCoZqfYcm4JTNR5a3pCKshuM8MKQGT', 3.7);
+      fail('bg', 'V2Ray', 'syK5Mg…AoA9', LONG_ADDR, 'METADATA_INVALID', 'signed metadata does not verify: the TLS certificate does not match the pin in the node account');
+      skip('nl', 'Xray', 'cE8K8k…fMk4', 'cE8K8kjy86srm55FnABECeaCk4Yznc1wuD93rFJsfMk4');
+      pass('gb', 'AmneziaWG', 'mqWCKh…a5je', 'mqWCKhWPDZeMXBbzrCnHwPksqvWseBoNTC81yeZaa5je', 0.9);
+      pass('de', 'V2Ray', 'itmKc6…wRTn', 'itmKc6eYaRLC9vh2RB7HJHXBeUBfyVytxjCnYV6UwRTn', 88.2);
+      fail('ro', 'V2Ray', 'jChUjn…PzZb', 'jChUjnqtLuK4y5KUGttMmt4dnVeMwQNEcYVEUHJPPzZb', 'CLIENT_TIMEOUT', LONG_ERR);
+      pass('us', 'WireGuard', '5MSunM…yXNU', '5MSunMZP65MzBbFbHkjLA93gGi9RGK3U8fJNT1PcyXNU', 412.6);
+      showToast('Demo log seeded');
+    }
+
+    // Normalize a node's serviceType into the lowercase string the row
+    // renderer expects ('wireguard' | 'v2ray' | null). The sanitizer can hand
+    // us either a number (1=wireguard, 2=v2ray) or a string — both must
+    // produce a transport badge.
+    // Solana: six transports (Cosmos had WireGuard + V2Ray). family picks the
+    // filter group (wg = WireGuard + AmneziaWG, v2 = V2Ray + Xray, ovpn, hy2); code is the badge text.
+    const SOL_PROTOCOLS = { wireguard: { code: 'WG', name: 'WireGuard', family: 'wg' }, amneziawg: { code: 'AWG', name: 'AmneziaWG', family: 'wg' }, v2ray: { code: 'V2', name: 'V2Ray', family: 'v2' }, xray: { code: 'XR', name: 'Xray', family: 'v2' }, openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'ovpn' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'hy2' } };
+    function solProtocol(v) {
+      if (v == null || v === '') return null;
+      if (v === 1 || v === '1') return SOL_PROTOCOLS.wireguard;
+      if (v === 2 || v === '2') return SOL_PROTOCOLS.v2ray;
+      return SOL_PROTOCOLS[String(v).toLowerCase()] || null;
+    }
+    function normalizeServiceType(v) {
+      const p = solProtocol(v);
+      return p ? p.name.toLowerCase() : null;
+    }
+
+    // ─── Header network stats (baseline + chain-wide) ───
+    let _headerBaseline = null;
+    function setHeaderBaseline(mbps) {
+      const el = document.getElementById('hdrBaseline');
+      if (!el) return;
+      const n = Number(mbps);
+      if (!Number.isFinite(n) || n <= 0) { el.textContent = '—'; return; }
+      _headerBaseline = n;
+      el.textContent = n.toFixed(1) + ' Mbps';
+      el.style.color = n >= 30 ? '' : 'var(--red)';
+    }
+    // Mean of baselineHistory (last-10 direct-connection speedtest readings).
+    // Falls back to the latest single reading when no history is forwarded yet.
+    function computeBaselineAvg(state) {
+      const hist = Array.isArray(state?.baselineHistory) ? state.baselineHistory : [];
+      const samples = hist.map(h => Number(h?.mbps)).filter(n => Number.isFinite(n) && n > 0);
+      if (samples.length > 0) return samples.reduce((a, b) => a + b, 0) / samples.length;
+      const latest = Number(state?.baselineMbps);
+      return Number.isFinite(latest) && latest > 0 ? latest : null;
+    }
+    async function loadHeaderStats() {
+      // Paint from REST first so the header tiles have values on a cold load
+      // even before SSE init arrives.
+      try {
+        const r = await fetch('/api/public/test/status', { cache: 'no-store' });
+        if (r.ok) {
+          const j = await r.json();
+          if (j && j.baselineMbps != null) setHeaderBaseline(j.baselineMbps);
+        }
+      } catch {}
+      try {
+        const r = await fetch('/api/public/stats', { cache: 'no-store' });
+        if (r.ok) {
+          const j = await r.json();
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          if (j.totalNodes != null) set('hdrNetworkNodes', Number(j.totalNodes).toLocaleString());
+          if (j.medianMbps != null) set('hdrNetworkMedian', Number(j.medianMbps).toFixed(1) + ' Mbps');
+          if (j.passingPct != null) set('hdrNetworkPass', Number(j.passingPct).toFixed(0) + '%');
+        }
+      } catch {}
+      // Then layer live-batch values on top once _liveState / resultsArr exist.
+      applyHeaderStatsFromState();
+    }
+
+    // REST fallback so a refresh paints stats + table BEFORE SSE init lands.
+    async function seedLiveStateFromRest() {
+      try {
+        const r = await fetch('/api/public/live-state', { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!j || !j.broadcastLive) return;
+        if (j.state) mergeLiveState(j.state);
+        // Only paint a dataset when the run is actually ACTIVE. With broadcast
+        // left on after a run completes, live-state still returns the LAST run's
+        // results — painting them here flashes a stale snapshot behind the
+        // "paused" overlay. For idle/done, applyPauseFromState shows the overlay
+        // and SSE repaints if a new run starts.
+        const _st = j.state && j.state.status;
+        const _active = _st === 'running' || _st === 'paused' || j.activeBatchId != null;
+        if (!_active) return;
+        // Pin the active batch id BEFORE upserting rows so subsequent SSE
+        // events (batch:start in particular) don't see `_cb.batchId == null`
+        // alongside painted rows and treat the seeded data as stale.
+        if (j.activeBatchId != null) {
+          _cb.batchId = j.activeBatchId;
+          if (j.snapshotSize != null) _cb.snapshotSize = j.snapshotSize;
+        }
+        if (Array.isArray(j.results)) {
+          for (const r2 of j.results) {
+            if (!r2 || !r2.address) continue;
+            upsert({
+              address:    r2.address,
+              moniker:    r2.moniker || '',
+              country:    r2.country || '',
+              countryCode: r2.countryCode || '',
+              city:       r2.city || '',
+              type:       r2.serviceType || null,
+              actualMbps: r2.actualMbps != null ? Number(r2.actualMbps) : null,
+              baselineAtTest: r2.baselineAtTest != null ? Number(r2.baselineAtTest) : null,
+              peers:      r2.peers != null ? Number(r2.peers) : null,
+              maxPeers:   r2.maxPeers != null ? Number(r2.maxPeers) : null,
+              error:      r2.error || null,
+              errorCode:  r2.errorCode || null,
+              skipped:    !!r2.skipped,
+              inPlan:     r2.inPlan === true,
+              testRun:    r2.errorCode === 'TEST_RUN_SKIP',
+              testedAt:   r2.testedAt || null,
+            });
+          }
+          // Sync the current-batch counter to the seeded rows so the Tested
+          // tile shows real progress on a cold refresh, then let cbRender derive
+          // the Passed SLA / Slow / Failed partition from the rows.
+          _cb.tested = resultsArr.length;
+          cbRender();
+        }
+        applyHeaderStatsFromState();
+        renderLiveStats();
+      } catch {}
+    }
+
+    function toggleTheme() {
+      const cur = document.documentElement.dataset.theme || 'dark';
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+      applyThemeIcons();
+    }
+    function applyThemeIcons() {
+      const t = document.documentElement.dataset.theme || 'dark';
+      const d = document.getElementById('themeIconDark');
+      const l = document.getElementById('themeIconLight');
+      if (d && l) {
+        d.style.display = t === 'dark' ? '' : 'none';
+        l.style.display = t === 'dark' ? 'none' : '';
+      }
+    }
+
+    // ─── State ───
+    let resultsArr = [];
+    let activeFilter = 'all';
+    let activeSearch = '';
+    const LIVE_PAGE_SIZE = 50;
+    let _livePage = 1;
+    const MAX_LOG  = 400;
+    // Suppresses appendLog's per-line scroll reset during bulk backlog replay,
+    // so we scroll once at the end — see seedLogBacklog().
+    let _logSeeding = false;
+
+    // ─── Helpers ───
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function fmtUtc(ts) {
+      if (!ts) return '';
+      const n = Number(ts);
+      const ms = Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : new Date(ts).getTime();
+      if (!Number.isFinite(ms)) return '';
+      const d = new Date(ms);
+      const yyyy = d.getUTCFullYear();
+      const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd   = String(d.getUTCDate()).padStart(2, '0');
+      const hh   = String(d.getUTCHours()).padStart(2, '0');
+      const mi   = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+    }
+    function shortAddr(a) {
+      if (!a) return '--';
+      return a.length > 18 ? a.slice(0, 10) + '·' + a.slice(-4) : a;
+    }
+    // ─── Click-to-copy node address ────────────────────────────────────
+    // Wrap a truncated address so clicking it copies the full bech32 to
+    // the clipboard. Stops propagation so it doesn't trigger row clicks.
+    function addrCopySpan(addrFull) {
+      if (!addrFull) return '--';
+      const full = escHtml(addrFull);
+      const short = escHtml(shortAddr(addrFull));
+      const explorerUrl = 'https://explorer.solana.com/address/' + encodeURIComponent(addrFull) + '?cluster=devnet';
+      return `<span class="addr-copy" data-addr="${full}" title="Click to copy ${full}" onclick="copyAddr(event, this)">${short}</span>`
+        + `<a class="addr-explorer" href="${escHtml(explorerUrl)}" target="_blank" rel="noopener noreferrer" title="Open in Sentinel Explorer" onclick="event.stopPropagation()" style="margin-left:5px;color:var(--accent);text-decoration:none">↗</a>`;
+    }
+    async function copyAddr(ev, el) {
+      ev.stopPropagation();
+      const addr = el?.dataset?.addr;
+      if (!addr) return;
+      let ok = false;
+      try { await navigator.clipboard.writeText(addr); ok = true; }
+      catch (_) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = addr; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (_) {}
+      }
+      if (ok) {
+        const orig = el.textContent;
+        el.textContent = '✓ copied';
+        setTimeout(() => { el.textContent = orig; }, 900);
+        if (typeof showToast === 'function') showToast('Address copied');
+      } else if (typeof showToast === 'function') {
+        showToast('Copy failed');
+      }
+    }
+    // ─── Country name → ISO-2 (mirrors public.html _CC) ───
+    const _CC = {
+      'United States':'US','Germany':'DE','France':'FR','United Kingdom':'GB','Canada':'CA',
+      'The Netherlands':'NL','Netherlands':'NL','Singapore':'SG','Japan':'JP','Australia':'AU',
+      'Spain':'ES','Italy':'IT','Romania':'RO','Poland':'PL','Switzerland':'CH','Austria':'AT',
+      'Sweden':'SE','Finland':'FI','Norway':'NO','Denmark':'DK','Ireland':'IE','Belgium':'BE',
+      'Portugal':'PT','Greece':'GR','Czech Republic':'CZ','Hungary':'HU','Bulgaria':'BG',
+      'Lithuania':'LT','Latvia':'LV','Estonia':'EE','Slovakia':'SK','Croatia':'HR','Slovenia':'SI',
+      'Ukraine':'UA','Turkey':'TR','Russia':'RU','India':'IN','Brazil':'BR','Mexico':'MX',
+      'Argentina':'AR','Chile':'CL','Colombia':'CO','South Korea':'KR','Taiwan':'TW',
+      'Hong Kong':'HK','Thailand':'TH','Vietnam':'VN','Indonesia':'ID','Philippines':'PH',
+      'Malaysia':'MY','South Africa':'ZA','Egypt':'EG','Nigeria':'NG','Kenya':'KE',
+      'Israel':'IL','United Arab Emirates':'AE','Saudi Arabia':'SA','Puerto Rico':'PR',
+      'New Zealand':'NZ','Iceland':'IS','Luxembourg':'LU','Malta':'MT','Cyprus':'CY',
+      'Serbia':'RS','Moldova':'MD','Georgia':'GE','Albania':'AL','North Macedonia':'MK',
+      'Bosnia and Herzegovina':'BA','Montenegro':'ME','Kosovo':'XK',
+      'Kyrgyzstan':'KG','Uzbekistan':'UZ','Tajikistan':'TJ',
+      'Bangladesh':'BD','Pakistan':'PK','Morocco':'MA','Peru':'PE','Venezuela':'VE',
+      'Guatemala':'GT','China':'CN','Kazakhstan':'KZ','Mongolia':'MN','Jamaica':'JM',
+      'Bolivia':'BO','Ecuador':'EC','Uruguay':'UY','Bahrain':'BH','DR Congo':'CD',
+      'Costa Rica':'CR','Panama':'PA','Paraguay':'PY','Dominican Republic':'DO',
+      'El Salvador':'SV','Honduras':'HN','Nicaragua':'NI','Cuba':'CU','Haiti':'HT',
+      'Trinidad and Tobago':'TT','Türkiye':'TR','Turkiye':'TR','Czechia':'CZ',
+      'Russian Federation':'RU','Viet Nam':'VN','Korea':'KR','Republic of Korea':'KR',
+    };
+    function _countryToCode(name) {
+      if (!name) return '';
+      if (name.length === 2) return name.toUpperCase();
+      const trimmed = name.trim();
+      return _CC[trimmed] || _CC[name] || '';
+    }
+    function flagFor(cc) {
+      if (!cc || cc.length !== 2) return '';
+      const c = cc.toLowerCase();
+      const up = cc.toUpperCase();
+      return `<img class="flag-img" src="https://flagcdn.com/${c}.svg" alt="${up}" loading="lazy" onerror="this.style.display='none'">`;
+    }
+
+    // ─── Filter ───
+    function setFilter(f) {
+      activeFilter = f;
+      _livePage = 1;
+      for (const id of ['filterAll','filterPass','filterFail','filterSlow','filterWg','filterV2','filterOvpn','filterHy2']) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.background = 'transparent';
+          el.style.color = 'var(--text-muted)';
+        }
+      }
+      const active = document.getElementById('filter' + f.charAt(0).toUpperCase() + f.slice(1));
+      if (active) { active.style.background = 'var(--bg-input)'; active.style.color = 'var(--text)'; }
+      renderTable();
+    }
+    function applyFilter(arr) {
+      const q = activeSearch;
+      let out = arr;
+      if (activeFilter !== 'all') {
+        out = out.filter(r => {
+          const _fam = (solProtocol(r.type) || {}).family;
+          const isWg = _fam === 'wg';
+          const isFail = r.actualMbps == null && !r.skipped;
+          // PASS = everything that didn't fail (FAST + SLOW + SKIPPED) per spec
+          if (activeFilter === 'pass') return !isFail;
+          if (activeFilter === 'fail') return isFail;
+          if (activeFilter === 'slow') return r.actualMbps != null && r.actualMbps < 10;
+          if (activeFilter === 'wg')   return isWg;
+          if (activeFilter === 'v2')   return _fam === 'v2';
+          if (activeFilter === 'ovpn' || activeFilter === 'hy2') return _fam === activeFilter;
+          return true;
+        });
+      }
+      if (q) {
+        out = out.filter(r => {
+          const hay = (
+            (r.moniker || '') + ' ' +
+            (r.address || '') + ' ' +
+            (r.country || '') + ' ' +
+            (r.city || '')
+          ).toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      return out;
+    }
+
+    // ─── Search ───
+    function setLiveSearch(value) {
+      activeSearch = (value || '').trim().toLowerCase();
+      _livePage = 1;
+      const clearBtn = document.getElementById('liveSearchClear');
+      if (clearBtn) clearBtn.style.display = activeSearch ? 'inline-block' : 'none';
+      renderTable();
+    }
+    function clearLiveSearch() {
+      const input = document.getElementById('liveSearchInput');
+      if (input) input.value = '';
+      setLiveSearch('');
+    }
+
+    // ─── Table render ───
+    function renderTable() {
+      const tbody = document.getElementById('resultsBody');
+      const wrap = tbody.closest('.table-wrap');
+      const prevScroll = wrap ? wrap.scrollTop : 0;
+      tbody.innerHTML = '';
+      const filtered = applyFilter(resultsArr).slice().reverse();
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / LIVE_PAGE_SIZE));
+      if (_livePage > totalPages) _livePage = totalPages;
+      const start = (_livePage - 1) * LIVE_PAGE_SIZE;
+      const slice = filtered.slice(start, start + LIVE_PAGE_SIZE);
+      if (total === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--text-dim);font-size:12px;background:transparent">No results match current filter.</td></tr>';
+      } else {
+        slice.forEach(r => appendRowHtml(r, tbody));
+      }
+      const label = activeFilter === 'all'
+        ? resultsArr.length + ' Entries'
+        : filtered.length + '/' + resultsArr.length + ' (' + activeFilter.toUpperCase() + ')';
+      document.getElementById('resultsCountLabel').textContent = label;
+      renderLivePager(total, totalPages);
+      if (wrap) wrap.scrollTop = prevScroll;
+    }
+
+    function renderLivePager(total, totalPages) {
+      const pager = document.getElementById('liveResultsPager');
+      if (!pager) return;
+      if (totalPages <= 1) { pager.style.display = 'none'; return; }
+      pager.style.display = 'flex';
+      const startIdx = (_livePage - 1) * LIVE_PAGE_SIZE + 1;
+      const endIdx   = Math.min(_livePage * LIVE_PAGE_SIZE, total);
+      document.getElementById('liveResultsPageInfo').textContent =
+        `Page ${_livePage} of ${totalPages} — ${startIdx}–${endIdx} of ${total}`;
+      document.getElementById('liveResultsPrev').disabled = _livePage <= 1;
+      document.getElementById('liveResultsNext').disabled = _livePage >= totalPages;
+    }
+
+    function liveGoPage(delta) {
+      const filtered = applyFilter(resultsArr);
+      const totalPages = Math.max(1, Math.ceil(filtered.length / LIVE_PAGE_SIZE));
+      const next = Math.min(totalPages, Math.max(1, _livePage + delta));
+      if (next === _livePage) return;
+      _livePage = next;
+      renderTable();
+    }
+
+    // Coalesce per-event table renders into one per animation frame. Results
+    // stream newest-first, so every new row lands on page 1 — the old code ran
+    // a full 50-row renderTable() synchronously for EVERY SSE result, and a
+    // burst of ~1000 node results during a live broadcast froze the main thread
+    // (the profile showed onmessage -> handleEvent -> upsert -> addSingleRow ->
+    // renderTable). Collapsing a burst into ~1 render/frame keeps the table live
+    // without blocking. renderTable() rebuilds the visible page, count label and
+    // pager from resultsArr, so the coalesced render reflects the final state.
+    let _renderQueued = false;
+    function scheduleRenderTable() {
+      if (_renderQueued) return;
+      _renderQueued = true;
+      requestAnimationFrame(() => { _renderQueued = false; renderTable(); });
+    }
+
+    function addSingleRow(r) {
+      scheduleRenderTable();
+    }
+
+    function appendRowHtml(r, tbody, prepend = false) {
+      const tr = document.createElement('tr');
+      tr.dataset.addr = r.address || '';
+      const typeStr = (r.type || '').toLowerCase();
+      const _proto = solProtocol(r.type);
+      const isWg = !!_proto && _proto.family === 'wg';
+      const isV2 = !!_proto && !isWg;
+      const hasKnownType = !!_proto;
+      const proto = (hasKnownType
+        ? `<span class="badge ${isWg ? 'badge-wg' : 'badge-v2'}">${_proto.code}</span>`
+        : '<span style="color:var(--text-muted);font-size:11px">—</span>'
+      ) + (r.errorCode === 'TEST_RUN_SKIP' ? '<span class="badge badge-dry">DRY</span>' : '');
+      const addrFull = r.address || '';
+      const monikerText = r.moniker || r.nodeName || '(unknown)';
+      const addr = addrCopySpan(addrFull);
+      const cc = r.countryCode || _countryToCode(r.country) || '';
+      const flag = flagFor(cc);
+      const countryName = escHtml(r.country || (cc ? cc : '—'));
+      const countryCol = flag ? `${flag} ${countryName}` : countryName;
+      const cityCol = escHtml(r.city || '—');
+      // TEST RUN rows never connect to the node — surface the Speed and per-row
+      // Baseline columns as "—" so the public can't misread the operator's WAN
+      // baseline as a node-side measurement.
+      const isTestRun = r.errorCode === 'TEST_RUN_SKIP';
+      const act = (!isTestRun && r.actualMbps != null) ? r.actualMbps.toFixed(2) + ' Mbps' : '--';
+      const blAt = (!isTestRun && r.baselineAtTest != null) ? r.baselineAtTest.toFixed(2) + ' Mbps' : '--';
+
+      let peersHtml = '--';
+      const peerCount = r.peers != null ? r.peers : null;
+      if (peerCount != null) {
+        peersHtml = r.maxPeers ? `${peerCount}/${r.maxPeers}` : `${peerCount}`;
+      }
+      let badge = '--';
+      if (r.skipped) {
+        badge = '<span class="badge badge-skip">SKIPPED</span>';
+      } else if (r.actualMbps != null) {
+        badge = r.actualMbps >= 10
+          ? '<span class="badge badge-pass">FAST</span>'
+          : '<span class="badge badge-slow">SLOW</span>';
+      } else {
+        badge = '<span class="badge badge-fail">FAIL</span>';
+      }
+
+      let transportHtml = '<span style="color:var(--text-muted);font-size:11px">—</span>';
+      if (isWg) {
+        transportHtml = `<span style="color:var(--text);font-size:11px">${_proto.name}</span>`;
+      } else if (isV2) {
+        transportHtml = `<span style="color:var(--text-dim);font-size:11px">${_proto.name}</span>`;
+      }
+
+      const isFail = r.actualMbps == null && !r.skipped;
+      const copyCell = isFail && addrFull
+        ? `<button class="row-copy-btn" title="Copy failure log" data-addr="${escHtml(addrFull)}" data-moniker="${escHtml(r.moniker || '')}" onclick="copyRowFailure(event)">⎘</button>
+           <button class="row-copy-btn" title="View error details" data-addr="${escHtml(addrFull)}" data-moniker="${escHtml(r.moniker || '')}" onclick="showRowFailurePopup(event)" style="margin-left:4px">👁</button>`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      tr.innerHTML = `
+        <td>${proto} ${transportHtml}</td>
+        <td class="td-moniker" style="font-weight:500" title="${escHtml(monikerText)}">${escHtml(monikerText)}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">${addr}</td>
+        <td>${countryCol}</td>
+        <td style="color:var(--text-dim)">${cityCol}</td>
+        <td class="td-num" style="text-align:center">${peersHtml}</td>
+        <td class="td-num" style="color:var(--text);font-weight:600">${act}</td>
+        <td class="td-num" style="color:var(--text-secondary)">${blAt}</td>
+        <td style="text-align:center">${badge}</td>
+        <td style="text-align:center">${copyCell}</td>
+      `;
+      prepend ? tbody.insertBefore(tr, tbody.firstChild) : tbody.appendChild(tr);
+    }
+
+    // ─── Logs ───
+    // Unified feed: every line is appended; there is no per-line show/hide
+    // filter (the ALL/NODE/FAIL/SYS buttons were removed). The cat/status tags
+    // are kept solely for tag-pill styling.
+
+    // Structured log entry. Takes opts:
+    //   { tag, cat, status ('pass'|'fail'|'warn'|'ok'|'sys'),
+    //     transport, cc, moniker, addr, mbps, errCode, msg }
+    // OR a plain string (back-compat) + optional klass.
+    function appendLog(opts, klass) {
+      const body = document.getElementById('logBody');
+      if (!body) return;
+
+      // Buffer/replay + raw 'log' SSE lines arrive as { ts, msg } (server-stamped
+      // emission time). They behave like plain string lines (classify by message
+      // shape) but carry their own time. Distinguish them from the rich
+      // structured lifecycle objects — which always carry tag/cat/status — by
+      // shape, unwrap to the string path, and remember the emission ts.
+      let _emitTs = null;   // emission time in ms, or null = unknown → blank
+      let _haveTs = false;  // entry specified its own time (vs. happening now)
+      if (opts && typeof opts === 'object' && ('msg' in opts) && !('tag' in opts) && !('cat' in opts) && !('status' in opts)) {
+        _emitTs = (typeof opts.ts === 'number') ? opts.ts : null;
+        _haveTs = true;
+        opts = String(opts.msg == null ? '' : opts.msg);
+      }
+
+      let o;
+      if (typeof opts === 'string') {
+        // Derive cat/tag from the message shape so historical/backfilled
+        // string-only lines (init.logs replay, /api/public/logs seed) also
+        // honour the NODE / FAIL / SYS filter buttons.
+        const txt = opts;
+        let cat = 'sys', tag = 'SYS';
+        const isFail   = /\b(?:✗|FAIL|ERROR|ERR_|TIMEOUT|insufficient|failed|UNAVAILABLE|REFUSED|UNKNOWN)\b/.test(txt);
+        const isPass   = /\b(?:✓|PASS|Speed:\s*[\d.]+\s*Mbps|✔)\b/.test(txt) && !isFail;
+        const isNode   = /\bsent1[a-z0-9]{8,}/i.test(txt) || /^\s*\[\d+\/\d+\]/.test(txt) || /\bTesting\s+sent1/i.test(txt);
+        if (isFail) { cat = 'fail'; tag = 'FAIL'; }
+        else if (isPass) { cat = 'node'; tag = 'PASS'; }
+        else if (isNode) { cat = 'node'; tag = 'NODE'; }
+        else if (/^Round\b|^Iteration\b|^Batch\b|✅\s*Round/i.test(txt)) { tag = 'ROUND'; }
+        let status = klass === 'log-ok' ? 'ok' : klass === 'log-err' ? 'fail' : klass === 'log-warn' ? 'warn' : null;
+        if (!status) {
+          if (isFail) status = 'fail';
+          else if (isPass) status = 'pass';
+          else if (/⚠|warn|pause|insufficient/i.test(txt)) status = 'warn';
+          else if (/complete|success|done/i.test(txt)) status = 'ok';
+        }
+        o = { msg: txt, status, cat, tag };
+      } else {
+        o = opts || {};
+      }
+
+      // Public /live is NODE-ONLY: keep per-node activity (cat 'node') and node
+      // failures (cat 'fail', required by the failure-log UX); drop everything
+      // that resolves to 'sys'/'events'. This covers BOTH the client-generated
+      // lifecycle objects (Testing started/stopped, Round N…) AND server-
+      // forwarded diagnostic strings. The server's log classifier is a denylist
+      // that defaults any unmatched line to 'node', so operational noise (RPC:
+      // N nodes fetched, ⏱ hard timeout, 🔄 VPN interference, [Blue C#], retries/
+      // reconnects) DOES reach the public stream — but the per-line heuristic
+      // above (address / PASS / SLOW / FAIL) re-derives 'sys' for those, which is
+      // the stronger signal for "is this a genuine node line." Failure strings
+      // carrying an address/"failed" still resolve to 'fail' and stay visible.
+      if (o.cat === 'sys' || o.cat === 'events') return;
+
+      const div = document.createElement('div');
+      const cls =
+        o.status === 'fail' ? 'log-err'  :
+        o.status === 'warn' ? 'log-warn' :
+        o.status === 'ok' || o.status === 'pass' ? 'log-ok' : '';
+      div.className = 'log-entry ' + cls;
+      div.dataset.cat = o.cat || 'sys';
+
+      // A normalised { ts, msg } entry uses its STORED emission time (null →
+      // blank, never a misleading now); live structured lifecycle objects are
+      // happening now.
+      const tsMs = _haveTs ? _emitTs : Date.now();
+      const ts = tsMs != null ? new Date(tsMs).toLocaleTimeString('en-US', { hour12: false }) : '';
+
+      // Tag pill ─ classification
+      const tagText  = (o.tag || (o.cat === 'node' ? 'NODE' : o.cat === 'fail' ? 'FAIL' : 'SYS')).toUpperCase();
+      const tagClass =
+        o.cat === 'fail' ? 'tag-fail' :
+        o.cat === 'node' && o.status === 'pass' ? 'tag-pass' :
+        o.cat === 'node' ? 'tag-node' :
+        o.tag === 'ROUND' ? 'tag-batch' :
+        o.tag === 'BATCH' ? 'tag-batch' :
+        o.tag === 'ITER' ? 'tag-iter' :
+        o.status === 'warn' ? 'tag-warn' :
+        'tag-sys';
+
+      // A row is "structured" when it carries node fields (transport / cc / addr
+      // / moniker / mbps). Those render as a two-line terminal record:
+      //   line 1 (head):   TIME  ⬤TAG  XPORT  CC ················· RESULT
+      //   line 2 (detail): node address · moniker  (or the message / err)
+      // Plain string lifecycle lines (e.g. "[842/1577] Testing sent1…") have
+      // none of those, so they stay a single dense line — head only.
+      const structured = !!(o.transport || o.cc || o.addr || o.moniker || o.mbps != null);
+
+      // ── HEAD line ── ALWAYS emits the same 5 grid columns so fields align
+      //   vertically across every row: TIME · TAG · XPORT · CC · RESULT.
+      //   XPORT/CC render as empty placeholders when absent (non-structured
+      //   lifecycle lines) so the grid never collapses or shifts.
+      const isSkip = o.errCode === 'TEST_RUN_SKIP';
+      const head = [`<span class="log-time">${ts}</span>`];
+      head.push(`<span class="log-tag ${tagClass}">${escHtml(tagText)}</span>`);
+
+      const xport = o.transport
+        ? ((solProtocol(o.transport) || {}).code || o.transport.toUpperCase().slice(0, 2))
+        : '';
+      head.push(`<span class="log-xport">${escHtml(xport)}</span>`);
+      // Country as a flag glyph (falls back to the 2-letter code if the flag
+      // image can't load — flagFor's onerror hides the img, alt keeps the code).
+      const flagHtml = o.cc ? flagFor(o.cc) : '';
+      head.push(`<span class="log-cc" title="${o.cc ? escHtml(String(o.cc).toUpperCase()) : ''}">${flagHtml || (o.cc ? escHtml(String(o.cc).toUpperCase()) : '')}</span>`);
+
+      // RESULT — right-anchored verdict: speed (pass), err-code (fail), SKIP
+      // marker (test run), or the message itself (plain lifecycle line).
+      if (o.mbps != null) {
+        const v = Number(o.mbps);
+        const mk = v >= 10 ? '' : v > 0 ? 'slow' : 'dead';
+        head.push(`<span class="log-result log-mbps ${mk}"><span class="num">${v.toFixed(1)}</span><span class="unit">Mbps</span></span>`);
+      } else if (isSkip) {
+        head.push(`<span class="log-result log-skip"><span class="skip-flag">SKIP</span></span>`);
+      } else if (o.cat === 'fail' && o.errCode) {
+        head.push(`<span class="log-result log-err-code" title="${escHtml(o.errCode)}">${escHtml(o.errCode)}</span>`);
+      } else if (!structured && o.msg) {
+        const escaped = escHtml(o.msg);
+        const linkified = escaped.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">${u}</a>`);
+        head.push(`<span class="log-result log-msg" style="text-align:left" title="${escHtml(o.msg)}">${linkified}</span>`);
+      } else {
+        head.push('<span class="log-result"></span>');
+      }
+
+      const parts = [`<div class="log-head">${head.join('')}</div>`];
+
+      // ── DETAIL line (structured rows only) ──
+      if (structured) {
+        const detail = [];
+        if (o.addr) detail.push(`<span class="log-id">${addrCopySpan(o.addr)}</span>`);
+        // On a failure the error message owns the detail line — the operator
+        // moniker is noise there (still in the copy payload + hover title). On a
+        // pass/skip the moniker is the useful human label, so keep it.
+        if (o.moniker && o.cat !== 'fail') detail.push(`<span class="log-moniker" title="${escHtml(o.moniker)}"><span style="color:var(--text-muted);opacity:0.4;margin:0 5px 0 2px">·</span>${escHtml(o.moniker)}</span>`);
+        // The longer human message lives on line 2 where it has full width
+        // (skip reason, full error prose). For fails the err-code is already in
+        // the head, so this is the verbose explanation.
+        if (o.msg) {
+          const escaped = escHtml(o.msg);
+          const linkified = escaped.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">${u}</a>`);
+          detail.push(`<span class="log-msg" title="${escHtml(o.msg)}">${linkified}</span>`);
+        }
+        if (o.cat === 'fail' && o.addr) {
+          detail.push(`<button class="log-copy" title="Copy failure log" data-addr="${escHtml(o.addr)}" data-moniker="${escHtml(o.moniker || '')}" onclick="copyRowFailure(event)">⎘</button>`);
+          detail.push(`<button class="log-copy" title="View error details" data-addr="${escHtml(o.addr)}" data-moniker="${escHtml(o.moniker || '')}" onclick="showRowFailurePopup(event)">👁</button>`);
+        }
+        if (detail.length) parts.push(`<div class="log-detail">${detail.join('')}</div>`);
+      }
+
+      div.innerHTML = parts.join('');
+      // Newest-first: prepend each new line at the TOP, scroll to the top to
+      // keep it in view, and trim the OLDEST off the bottom.
+      body.insertBefore(div, body.firstChild);
+      // During bulk backlog replay we scroll once at the end (seedLogBacklog) —
+      // reading scroll positions here per line forces a synchronous layout
+      // reflow, which froze the page when replaying thousands of buffered lines.
+      if (!_logSeeding) body.scrollTop = 0;
+      if (body.children.length > MAX_LOG) body.removeChild(body.lastChild);
+    }
+
+    // ─── Toast / status ───
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    function setStatus(state, meta) {
+      // Log-panel status label only. Main status is shown via cbCard.
+      const s = document.getElementById('logStatus');
+      if (s) s.textContent = state;
+      const dot = document.getElementById('cbDot');
+      if (dot) dot.className = 'pulse-dot' + (state === 'running' ? ' running' : '');
+    }
+
+    function showPaused(on) {
+      const el = document.getElementById('pausedOverlay');
+      if (!el) return;
+      el.classList.toggle('show', !!on);
+      el.setAttribute('aria-hidden', on ? 'false' : 'true');
+    }
+
+    // ─── Current Batch Panel ───
+    const _cb = {
+      batchId: null,
+      snapshotSize: 0,
+      startedAt: null,
+      iteration: null,
+      tested: 0,
+      passed: 0,
+      slow: 0,
+      failed: 0,
+      skipped: 0,
+      gapEndsAt: null,
+      gapTimer: null,
+    };
+
+    function _cbEl(id) { return document.getElementById(id); }
+
+    function cbApplyBatchStart(data) {
+      data = data || {};
+      _cb.batchId      = data.batchId ?? data.batch_id ?? null;
+      _cb.snapshotSize = data.snapshotSize || data.snapshot_size || data.total || 0;
+      const startRaw   = data.startedAt || data.started_at;
+      _cb.startedAt    = startRaw ? new Date(startRaw).getTime() : Date.now();
+      _cb.iteration    = data.iteration ?? null;
+      _cb.tested = 0; _cb.passed = 0; _cb.slow = 0; _cb.failed = 0; _cb.skipped = 0;
+      _cb.gapEndsAt = null;
+      if (_cb.gapTimer) { clearInterval(_cb.gapTimer); _cb.gapTimer = null; }
+      const dot = _cbEl('cbDot');
+      if (dot) dot.className = 'pulse-dot running';
+      const msg = _cbEl('cbCompleteMsg');
+      if (msg) msg.style.display = 'none';
+      cbRender();
+    }
+
+    function cbApplyNodeResult() {
+      // The row is already upserted into resultsArr by the caller; cbRender is the
+      // single source of truth — it recomputes Tested + the Passed SLA / Slow /
+      // Failed partition from resultsArr. Don't accumulate counts here (that path
+      // used a 2-bucket SLA-only definition that disagreed with cbRender).
+      cbRender();
+    }
+
+    function cbApplyBatchEnd() {
+      // Don't trust the server's batch:end passed/failed — they use a different
+      // definition (passed = total testedNodes, failed = hard errors only) that
+      // conflicts with cbRender's resultsArr-derived partition. Just stop the
+      // pulse and let cbRender recompute from the authoritative rows.
+      const dot = _cbEl('cbDot');
+      if (dot) dot.className = 'pulse-dot';
+      cbRender();
+    }
+
+    // Halt the live-progress UI when the run ends (stop / done / error / idle).
+    // Called from the `state` event handler for direct /api/start runs, which
+    // never emit `loop:stopped`. Freezing `_cb.startedAt` stops the per-second
+    // ETA ticker from climbing; clearing the gap timer stops any countdown;
+    // the dot drops its "running" pulse and the log-header label updates.
+    function cbFreeze(status) {
+      // Stop the ETA ticker — without clearing startedAt the 1s timer keeps
+      // recomputing elapsed/tested and the ETA marches upward forever.
+      _cb.startedAt = null;
+      if (_cb.gapTimer) { clearInterval(_cb.gapTimer); _cb.gapTimer = null; }
+      _cb.gapEndsAt = null;
+      const dot = _cbEl('cbDot');
+      if (dot) dot.className = 'pulse-dot';
+      const hdrDot = document.getElementById('headerDot');
+      if (hdrDot) hdrDot.className = 'pulse-dot';
+      // Log-panel header label: 'stopped' / 'complete' / 'error' / 'idle'.
+      setStatus(status === 'done' ? 'complete' : status);
+      // cbRender recomputes the ETA: a 'done' run reads "ETA 00:00:00" (matches
+      // admin), any other terminal/stopped status with no anchor reads "ETA —",
+      // never a climbing number.
+      cbRender();
+    }
+
+    function cbApplyGap(data) {
+      data = data || {};
+      const gapMs = data.next_in_ms || data.gapMs || 30000;
+      const nextAt = data.nextBatchAt ? new Date(data.nextBatchAt).getTime() : (Date.now() + gapMs);
+      _cb.gapEndsAt = nextAt;
+      if (_cb.gapTimer) clearInterval(_cb.gapTimer);
+      _cb.gapTimer = setInterval(() => {
+        const secs = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
+        const msg = _cbEl('cbCompleteMsg');
+        if (msg) {
+          msg.style.display = '';
+          const iter = _cb.iteration != null ? ' #' + _cb.iteration : '';
+          msg.textContent = 'Batch' + iter + ' complete. Next batch in ' + secs + 's…';
+        }
+        if (secs <= 0) { clearInterval(_cb.gapTimer); _cb.gapTimer = null; }
+      }, 1000);
+    }
+
+    // Single source of truth for the run-wide sweep denominator (the "Y" in
+    // "X / Y nodes tested" and "X / Y Nodes"). Prefer state.totalNodes — the
+    // full per-run sweep the pipeline maintains across stop→resume and
+    // broadcasts via the `state` event — over _cb.snapshotSize. The latter is
+    // the *per-batch* count, and on a RESUMED batch (continuous.js emits
+    // `snapshotSize: viableNodes.length`) it is only the remaining-untested
+    // nodes. The tested count (X = deduped resultsArr.length) is cumulative
+    // across the whole run, including pre-resume rows replayed on `init`, so
+    // pairing it with a remainder-only denominator made "X / Y" lag (showing
+    // the previous run's total) until the next full batch:start landed. Three
+    // callers (cbRender, renderLiveStats, applyHeaderStatsFromState) computed
+    // this independently with divergent priority; routing them through one
+    // helper keeps them from drifting again. Falls back to the per-batch
+    // snapshot, then the row count, when the run total isn't known yet.
+    function runTotalNodes() {
+      const total = _liveState && Number(_liveState.totalNodes);
+      if (total > 0) return total;
+      if (_cb.snapshotSize > 0) return _cb.snapshotSize;
+      const arr = Array.isArray(resultsArr) ? resultsArr : [];
+      return arr.length || 0;
+    }
+
+    function cbRender() {
+      const snap   = runTotalNodes();
+      // Single source of truth: the deduped resultsArr (rows upserted by
+      // address) — same approach admin.html uses for its Tested tile. Server
+      // `state.testedNodes` can double-count retries / counter-increment
+      // races, which produced public 227 vs admin 150 desync. Fall back to
+      // _cb.tested only when resultsArr hasn't arrived (early init).
+      const arr    = Array.isArray(resultsArr) ? resultsArr : [];
+      const tested = arr.length > 0 ? arr.length : _cb.tested;
+      // Bar pct is ONLY meaningful when we know the snapshot size. Falling
+      // back to `tested` for `total` made pct=100% the moment any row arrived.
+      const pct    = snap > 0 ? Math.min(100, Math.round(tested / snap * 100)) : 0;
+      const totalDisplay = snap > 0 ? snap : '—';
+
+      const fill = _cbEl('cbProgressFill');
+      if (fill) fill.style.width = pct + '%';
+
+      const countEl = _cbEl('cbCount');
+      if (countEl) countEl.textContent = tested + ' / ' + totalDisplay + ' nodes tested';
+
+      const etaEl = _cbEl('cbEta');
+      if (etaEl) {
+        // Skew-immune ETA: the server broadcasts a REMAINING DURATION
+        // (_liveState.etaRemainingMs), not an absolute epoch. We anchor it to
+        // THIS client's own clock at receipt (see mergeLiveState → _etaAnchor)
+        // and count it down using only our clock — so a skewed browser clock
+        // can't distort the ETA. This page and admin.html show the same value.
+        // Parity with admin.html (updateETA): a terminal 'done' run shows a
+        // zeroed clock — "ETA 00:00:00" — NOT "ETA —". The server stops
+        // broadcasting a positive etaRemainingMs once status leaves 'running'
+        // (computeEtaRemainingMs returns null), so _etaAnchor is already cleared
+        // by the time a run reads 'done'; without this branch a completed run
+        // would show "ETA —" here while admin shows "00:00:00". "ETA —" stays
+        // reserved for genuinely unknown / stopped-mid-run states (no anchor,
+        // not done).
+        if (_liveState && _liveState.status === 'done') {
+          etaEl.textContent = 'ETA 00:00:00';
+        } else if (_etaAnchor) {
+          const rem = Math.max(0, _etaAnchor.remainingMs - (Date.now() - _etaAnchor.at));
+          const h = Math.floor(rem / 3600000);
+          const m = Math.floor((rem % 3600000) / 60000);
+          const s = Math.floor((rem % 60000) / 1000);
+          etaEl.textContent = `ETA ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        } else if (_liveState && _liveState.status === 'running'
+                   && (_liveState.scanning || !Number.isFinite(Number(_liveState.totalNodes)) || Number(_liveState.totalNodes) <= 0)) {
+          // Still in the Phase-2 online scan → ETA genuinely incomputable (no
+          // completions to measure yet). _liveState.scanning is the reliable
+          // signal: on a RESUME totalNodes is a restored positive value, so the
+          // totalNodes<=0 check alone misses it (it still catches the fresh-run
+          // pre-scan window where totalNodes is 0). Show "Scanning…" rather than a
+          // frozen-looking "ETA —". Parity with admin.html updateETA.
+          etaEl.textContent = 'ETA Scanning…';
+        } else {
+          etaEl.textContent = 'ETA —';
+        }
+      }
+
+      // Outcome buckets — mutually exclusive, derived from resultsArr (the single
+      // source of truth). They PARTITION the tested (non-skipped) nodes so that
+      // Passed SLA + Slow + Failed always reconciles. Priority: a hard error or no
+      // speed reading is Failed; otherwise ≥10 Mbps is Passed SLA; a connected
+      // sub-10 reading is Slow. Skipped / TEST RUN rows aren't outcomes — they're
+      // surfaced in the stat tiles, not here. (This replaced a 2-bucket scheme
+      // where slow-but-connected nodes fell through both filters, e.g. 7 tested
+      // showing 5 passed / 0 failed with the 2 slow nodes uncounted.)
+      let passed = 0, slow = 0, failed = 0, skipped = 0;
+      for (const r of arr) {
+        if (r.skipped || r.errorCode === 'TEST_RUN_SKIP') { skipped++; continue; }
+        const m = r.actualMbps != null ? Number(r.actualMbps) : null;
+        if (m == null || r.error || r.errorCode) failed++;
+        else if (m >= 10) passed++;
+        else slow++;
+      }
+      // passed + slow + failed + skipped === arr.length (=== Tested), always.
+      _cb.passed = passed; _cb.slow = slow; _cb.failed = failed; _cb.skipped = skipped;
+      const passEl = _cbEl('cbPassed');
+      if (passEl) passEl.textContent = passed;
+      const slowEl = _cbEl('cbSlow');
+      if (slowEl) slowEl.textContent = slow;
+      const failEl = _cbEl('cbFailed');
+      if (failEl) failEl.textContent = failed;
+      // Skipped (price-cap / offline / TEST RUN) only shows when present, so the
+      // buckets visibly reconcile with Tested without cluttering normal runs.
+      const skipEl = _cbEl('cbSkipped');
+      if (skipEl) skipEl.textContent = skipped;
+      const skipWrap = _cbEl('cbSkippedWrap');
+      if (skipWrap) skipWrap.style.display = skipped > 0 ? '' : 'none';
+
+      const snapEl = _cbEl('cbSnapshot');
+      if (snapEl) snapEl.textContent = snap || '—';
+
+      renderLiveStats();
+    }
+
+    function renderLiveStats() {
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+      const arr      = Array.isArray(resultsArr) ? resultsArr : [];
+      // Run-wide sweep total for THIS run (the "Y" denominator). See
+      // runTotalNodes() — prefers state.totalNodes so a resumed batch's
+      // remainder-only snapshotSize can't shrink the denominator below the
+      // cumulative tested count.
+      const snap     = runTotalNodes();
+
+      // "Connected" = node returned mbps>0 (handshake + speed both succeeded).
+      const connected = arr.filter(r => r.actualMbps != null && r.actualMbps > 0).length;
+      // "Failed" = explicit error OR mbps==null. Exclude TEST RUN skips and
+      // explicit skips — those are not failures, they're not-tested.
+      const failed    = arr.filter(r => !r.skipped && r.errorCode !== 'TEST_RUN_SKIP' && (r.error || r.errorCode || r.actualMbps == null)).length;
+      // Pass 10 Mbps SLA: real connections at or above 10.
+      const p10       = arr.filter(r => r.actualMbps != null && Number(r.actualMbps) >= 10).length;
+      // Tested counter — match admin.html exactly: deduped resultsArr.length
+      // is the single source of truth. State.testedNodes can double-count
+      // (counter-increment races during retries) which caused public to read
+      // 227 while admin read 150. Mid-run joiners get the full backlog via
+      // the `init` SSE event + REST fallback, so arr.length is always the
+      // same row count admin sees.
+      const processed = arr.length;
+      // Real processed (excluding TEST_RUN_SKIP / explicit skips) for failure
+      // / SLA / pass-rate denominators below.
+      const realProcessed = arr.filter(r => !r.skipped && r.errorCode !== 'TEST_RUN_SKIP').length;
+      // Not Online: failed AND no peers (genuinely offline).
+      const notOnline = arr.filter(r => r.actualMbps == null && (r.peers === 0 || r.peers == null)).length;
+      // Dead Plan Nodes: plan-flagged nodes that failed.
+      const planRows  = arr.filter(r => r.inPlan === true);
+      const deadPlan  = planRows.filter(r => r.actualMbps == null).length;
+
+      // Detect TEST RUN: state.testRun flag (immediate), any row marked
+      // TEST_RUN_SKIP, OR no real-processed rows yet but at least one skipped.
+      const isTestRun = !!(_liveState && _liveState.testRun) ||
+                       arr.some(r => r.errorCode === 'TEST_RUN_SKIP') ||
+                       (arr.length > 0 && realProcessed === 0 &&
+                        arr.some(r => r.skipped));
+      const testRunBadge = document.getElementById('testRunBadge');
+      if (testRunBadge) testRunBadge.style.display = isTestRun ? '' : 'none';
+      const testRunBanner = document.getElementById('testRunBanner');
+      if (testRunBanner) testRunBanner.classList.toggle('is-visible', isTestRun);
+
+      // Tested — always shows real progress, even during a TEST RUN.
+      if (snap > 0) {
+        set('lsTested', `${processed.toLocaleString()} / ${snap.toLocaleString()} Nodes`);
+        set('lsTestedSub', snap > processed
+          ? `${(snap - processed).toLocaleString()} remaining`
+          : 'complete');
+      } else {
+        set('lsTested', processed.toLocaleString());
+        set('lsTestedSub', processed > 0 ? `${processed.toLocaleString()} tested` : 'no data yet');
+      }
+
+      // During a TEST RUN, the speed/SLA/failure metrics are intentionally
+      // not measured — surface that with a dash so the public sees that
+      // these are not "0" results, they are simply not produced.
+      const DASH = '—';
+
+      // Total Failed
+      if (isTestRun) {
+        set('lsTotalFailed', DASH);
+        set('lsTotalFailedPct', 'not tested');
+      } else {
+        set('lsTotalFailed', failed);
+        const failPct = realProcessed > 0 ? (failed / realProcessed * 100).toFixed(1) : '0';
+        set('lsTotalFailedPct', failPct + '% failure rate');
+      }
+
+      // Pass 10 Mbps SLA
+      if (isTestRun) {
+        set('lsPassedSLA', DASH);
+        set('lsPassedSLAPct', 'not tested');
+      } else {
+        set('lsPassedSLA', p10);
+        const slaPct = connected > 0 ? (p10 / connected * 100).toFixed(1) : '0';
+        set('lsPassedSLAPct', slaPct + '% of connected');
+      }
+
+      // Dead Plan Nodes
+      if (isTestRun) {
+        set('lsDeadPlan', DASH);
+        set('lsDeadPlanPct', 'not tested');
+      } else {
+        set('lsDeadPlan', deadPlan);
+        set('lsDeadPlanPct', planRows.length > 0
+          ? `${deadPlan}/${planRows.length} plan nodes failed`
+          : 'No plan failures');
+      }
+
+      // Not Online — match admin.html exactly: any row with no measured mbps
+      // and no peers counts as offline. TEST_RUN_SKIP rows are included for
+      // parity with admin (user-confirmed behavior 2026-04-25).
+      const trulyOffline = arr.filter(r =>
+        r.actualMbps == null &&
+        (r.peers === 0 || r.peers == null)
+      ).length;
+      set('lsNotOnline', trulyOffline);
+      set('lsNotOnlineSub', trulyOffline === 1 ? '1 node offline' : `${trulyOffline} nodes offline`);
+
+      // Pass Rate
+      if (isTestRun) {
+        set('lsPassRate', DASH);
+      } else {
+        const connRate = realProcessed > 0 ? (connected / realProcessed * 100).toFixed(1) : '0';
+        set('lsPassRate', connRate + '%');
+      }
+
+      const dot = document.getElementById('headerDot');
+      if (dot) dot.className = (_cb.startedAt && !_cb.gapEndsAt) ? 'pulse-dot running' : 'pulse-dot';
+    }
+
+    setInterval(() => {
+      renderLiveStats();
+      applyHeaderStatsFromState();
+    }, 5000);
+
+    // Dedicated 1s ETA ticker. The ETA is a countdown of the server-broadcast
+    // REMAINING DURATION (_etaAnchor, anchored to our own clock in
+    // mergeLiveState), so it must re-render every second to tick the anchor down
+    // between server events. Gated on _cb.startedAt (cbFreeze nulls it on
+    // stop/done/error/idle) so a finished run's ETA freezes instead of marching.
+    setInterval(() => {
+      if (_cb.startedAt) cbRender();
+    }, 1000);
+
+    // ─── Upsert ───
+    function upsert(r) {
+      const idx = resultsArr.findIndex(x => x.address === r.address);
+      if (idx >= 0) resultsArr[idx] = { ...resultsArr[idx], ...r };
+      else          resultsArr.push(r);
+      addSingleRow(r);
+      schedulePersist();
+    }
+
+    // ─── Live snapshot persistence ───
+    // Mirror admin's view across page refresh: cache the current resultsArr +
+    // last-known state so a refresh paints immediately, before SSE init lands.
+    const LIVE_CACHE_KEY = 'live:snapshot:v1';
+    const LIVE_CACHE_TTL_MS = 60 * 60 * 1000; // 1h — enough to survive a reload
+    let _liveState = {};
+    // Skew-immune ETA anchor. The server broadcasts a REMAINING DURATION
+    // (_liveState.etaRemainingMs); we snapshot it against THIS client's own
+    // clock the instant a state update lands (mergeLiveState), then cbRender's
+    // 1s ticker counts it down using only our clock. A new server value
+    // re-anchors; null clears it (cbRender shows "ETA —").
+    let _etaAnchor = null; // { remainingMs, at } or null
+    function anchorEta() {
+      const rem = Number(_liveState && _liveState.etaRemainingMs);
+      if (Number.isFinite(rem)) _etaAnchor = { remainingMs: rem, at: Date.now() };
+      else _etaAnchor = null;
+    }
+    // True once we've received an AUTHORITATIVE run status — either the REST
+    // live-state seed or an SSE state/init. Until then, applyPauseFromState must
+    // NOT decide "paused" from the empty/cached defaults: on a cold load the
+    // status is unknown and _cb.batchId is null, which would flash the "Testing
+    // Has Been Paused" overlay on for an active run before the real state lands.
+    let _liveStateResolved = false;
+    let _persistTimer = null;
+    function schedulePersist() {
+      if (_persistTimer) return;
+      _persistTimer = setTimeout(() => {
+        _persistTimer = null;
+        try {
+          const snap = {
+            ts: Date.now(),
+            broadcastLive: _broadcastLive,
+            state: _liveState || {},
+            // Stamp the run number so rehydrate can detect a stale cache
+            // from a previous test and discard it instead of repainting
+            // last run's rows on top of a fresh run.
+            activeRunNumber: _liveState && _liveState.activeRunNumber != null ? _liveState.activeRunNumber : null,
+            results: resultsArr,
+            cb: { ..._cb },
+          };
+          localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify(snap));
+        } catch {}
+      }, 250);
+    }
+    // Synchronous (no network) read of the persisted snapshot: did the last
+    // session leave an ACTIVE, broadcasting run? Used at load to decide the
+    // overlay before the async broadcast check, so a stopped page never flashes
+    // the live shell and an operator's mid-run refresh reveals the work instantly.
+    function rehydrateFromCache() {
+      try {
+        const raw = localStorage.getItem(LIVE_CACHE_KEY);
+        if (!raw) return;
+        const snap = JSON.parse(raw);
+        if (!snap || !snap.ts || (Date.now() - snap.ts) > LIVE_CACHE_TTL_MS) {
+          try { localStorage.removeItem(LIVE_CACHE_KEY); } catch {}
+          return;
+        }
+        // Park the cached run number; we'll compare against the live SSE
+        // state and discard rows below when they're from a previous run.
+        if (snap.activeRunNumber != null) _prevActiveRunNumber = snap.activeRunNumber;
+        if (snap.state && typeof snap.state === 'object') _liveState = snap.state;
+        // Only repaint cached rows when the snapshot captured an ACTIVE run.
+        // A stopped/idle cache must not flash last-run rows: applyPauseFromState
+        // wins for idle/done, and SSE/seed repaints when a run is (re)started.
+        // Without this guard, a refresh of a just-finished run flashes the old
+        // table for a beat before the paused overlay covers it.
+        const _cs = snap.state && snap.state.status;
+        const _cachedActive = _cs === 'running' || _cs === 'paused' || !!(snap.cb && snap.cb.batchId);
+        if (_cachedActive && Array.isArray(snap.results) && snap.results.length && resultsArr.length === 0) {
+          for (const r of snap.results) {
+            resultsArr.push(r);
+            addSingleRow(r);
+          }
+        }
+        if (_cachedActive && snap.cb && typeof snap.cb === 'object') {
+          // Restore counters so the bar paints immediately
+          Object.assign(_cb, snap.cb);
+          cbRender();
+        }
+        applyHeaderStatsFromState();
+      } catch {}
+    }
+
+    // Merge a state snapshot from admin into our local mirror, then refresh
+    // the header derived from current-batch values.
+    function mergeLiveState(s) {
+      if (!s || typeof s !== 'object') return;
+      // An authoritative run status has landed (REST live-state seed or SSE
+      // state/init) — applyPauseFromState may now decide the overlay.
+      _liveStateResolved = true;
+      _liveState = { ..._liveState, ...s };
+      anchorEta(); // re-anchor the skew-immune ETA on every state update
+      applyHeaderStatsFromState();
+      applyPauseFromState();
+      schedulePersist();
+    }
+
+    // Show the "Testing Has Been Paused" overlay whenever there is no active
+    // run on admin — i.e. broadcastLive is off OR state.status is not running
+    // and there is no in-flight batch. Public visitors should see paused, not
+    // a frozen stale dashboard.
+    function applyPauseFromState() {
+      // Broadcast off is authoritative — there is no active run to show, so the
+      // overlay goes up immediately regardless of how much state we've loaded.
+      if (!_broadcastLive) { showPaused(true); return; }
+      // Broadcast on, but we haven't confirmed the run status yet (cold-load
+      // async window). Don't decide "paused" from empty/cached defaults — that
+      // flashed the overlay on for an active run before the real state arrived.
+      // Leave the overlay at its current state until authoritative state lands.
+      if (!_liveStateResolved) return;
+      const status = _liveState && _liveState.status;
+      const running = status === 'running' || status === 'paused';
+      const midBatch = !!(_cb && _cb.batchId);
+      showPaused(!running && !midBatch);
+    }
+
+    // Derive header stats from the live state + resultsArr (current batch),
+    // never from chain-wide aggregates. Falls back to "—" when unknown.
+    function applyHeaderStatsFromState() {
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      // Server Baseline — mean of baselineHistory (last-10 readings) so the
+      // header tile shows a true rolling average, not a single sample. Only
+      // paint when a test is actually running; restored snapshot values from a
+      // prior session would otherwise look hardcoded on a fresh page load.
+      const liveStatus = (_liveState && _liveState.status) || '';
+      const isLive = liveStatus === 'running' || liveStatus === 'paused' || !!(_cb && _cb.batchId);
+      if (_liveState && isLive) {
+        const avg = computeBaselineAvg(_liveState);
+        if (avg != null) setHeaderBaseline(avg);
+      } else {
+        setHeaderBaseline(null);
+      }
+      // Network Nodes — run-wide sweep total. Shared denominator (prefers
+      // state.totalNodes, falls back to _cb.snapshotSize, then resultsArr).
+      const totalNodes = runTotalNodes();
+      // Only overwrite if we actually have a live value; otherwise leave
+      // whatever loadHeaderStats() painted from /api/public/stats.
+      if (totalNodes) set('hdrNetworkNodes', Number(totalNodes).toLocaleString());
+      // Network Median — derive from passed nodes' actualMbps in current batch.
+      // Only paint when a test is live; otherwise the REST seed (which now
+      // returns null when no test is running) clears the tile to "—".
+      if (isLive) {
+        const speeds = resultsArr
+          .map(r => Number(r.actualMbps))
+          .filter(n => Number.isFinite(n) && n > 0)
+          .sort((a, b) => a - b);
+        if (speeds.length) {
+          const mid = Math.floor(speeds.length / 2);
+          const median = speeds.length % 2 ? speeds[mid] : (speeds[mid - 1] + speeds[mid]) / 2;
+          set('hdrNetworkMedian', median.toFixed(1) + ' Mbps');
+        } else {
+          set('hdrNetworkMedian', '—');
+        }
+      } else {
+        set('hdrNetworkMedian', '—');
+      }
+      // Network Pass Rate — passed / processed in current batch.
+      // Excludes TEST_RUN_SKIP and explicit skips so the rate reflects real tests.
+      const processed = resultsArr.filter(r =>
+        !(r.skipped || r.errorCode === 'TEST_RUN_SKIP')
+      ).length;
+      const passed = resultsArr.filter(r =>
+        Number.isFinite(Number(r.actualMbps)) && Number(r.actualMbps) >= 10
+      ).length;
+      if (processed > 0) set('hdrNetworkPass', Math.round(passed / processed * 100) + '%');
+      // else: leave the REST-painted value in place.
+      applyLiveModeBadge();
+    }
+
+    // SDK info cache for the badge sub-line. Refetched only when the active
+    // SDK key in state changes — public endpoint is unauth'd but cheap enough
+    // we don't want to hammer it on every SSE state tick.
+    let _sdkInfo = null;        // { active, name, version }
+    let _sdkInfoFetchedFor = null;
+    let _sdkInfoInflight = null; // shared promise — dedupes concurrent fetches
+    async function refreshSdkInfoIfNeeded() {
+      const want = (_liveState && _liveState.activeSDK) || null;
+      if (want && want === _sdkInfoFetchedFor && _sdkInfo) return;
+      // Dedupe concurrent calls. On RESUME a burst of state updates (REST seed,
+      // SSE state ticks, loadCurrentBatch) each call applyLiveModeBadge →
+      // refreshSdkInfoIfNeeded before the first fetch resolves and sets
+      // _sdkInfoFetchedFor — so all of them used to fire their own /sdk-info
+      // request (seen as 5 calls on resume vs 1 on a fresh load). Share one
+      // in-flight request instead; the key is set when it resolves.
+      if (_sdkInfoInflight) return _sdkInfoInflight;
+      _sdkInfoInflight = (async () => {
+        try {
+          const r = await fetch('/api/public/sdk-info');
+          if (!r.ok) return;
+          const d = await r.json();
+          _sdkInfo = d;
+          _sdkInfoFetchedFor = d.active || want;
+          applyLiveModeBadge();
+        } catch {}
+        finally { _sdkInfoInflight = null; }
+      })();
+      return _sdkInfoInflight;
+    }
+    function sdkSuffix() {
+      if (!_sdkInfo || !_sdkInfo.name) return '';
+      const v = _sdkInfo.version ? ' v' + _sdkInfo.version : '';
+      return ' · ' + _sdkInfo.name + v;
+    }
+
+    // Mirror the admin "what's running" badge: Plan #N / P2P / Test Run with a
+    // 1-line description. Reads state.runMode + state.runPlanId (forwarded by
+    // the server's sanitizePublicState whitelist).
+    function applyLiveModeBadge() {
+      const badge = document.getElementById('liveModeBadge');
+      const labelEl = document.getElementById('liveModeBadgeLabel');
+      const subEl = document.getElementById('liveModeSub');
+      if (!badge || !labelEl) return;
+      const status = _liveState && _liveState.status;
+      const active = status === 'running' || status === 'paused' || (_cb && _cb.batchId);
+      if (!active) {
+        badge.style.display = 'none';
+        if (subEl) subEl.textContent = 'Live public testing — Sentinel dVPN network';
+        return;
+      }
+      refreshSdkInfoIfNeeded();
+      let label, detail, color;
+      if ((_liveState && _liveState.testRun) || (_liveState && _liveState.runMode === 'test')) {
+        label = 'Test Run';
+        detail = 'Sample data — no real measurements, no payments';
+        color = 'var(--accent)';
+      } else if (_liveState && _liveState.runMode === 'subscription' && _liveState.runPlanId) {
+        label = 'Plan #' + _liveState.runPlanId;
+        detail = 'On-Chain Subscription Plan Test';
+        color = 'var(--green)';
+      } else {
+        const pricing = _liveState && _liveState.pricingMode;
+        const suffix = pricing === 'hours'
+          ? ' : Testing All Nodes - Paying Per Hour'
+          : ' : Testing All Nodes - Paying Per GB';
+        label = 'P2P';
+        detail = 'All online nodes — direct peer-to-peer payments per session' + suffix;
+        color = 'var(--accent)';
+      }
+      badge.style.display = '';
+      badge.style.borderColor = color;
+      badge.style.color = color;
+      labelEl.textContent = label;
+      if (subEl) subEl.textContent = detail + sdkSuffix();
+    }
+
+    // ─── SSE dispatcher ───
+    let _sse = null;
+    let _sseRetry = 1000;
+    const SSE_MAX_RETRY = 30000;
+
+    // Track previous run identity so we can detect a new run starting on the
+    // operator side from `state` events alone — direct /api/start and
+    // /api/test-sub-plan invocations don't emit `loop:started`, only
+    // continuous.js does, so without this detector /live keeps stale rows
+    // from the prior run forever.
+    let _prevActiveRunNumber = null;
+    let _prevStatus = null;
+
+    // Wipe rendered rows + log for a brand-new run so the live page is not
+    // showing stale data from the previous run that the operator just stopped.
+    // Mirrors the admin panel's "clear log + renderTable on start" behaviour.
+    function resetLiveForNewRun() {
+      try {
+        resultsArr.length = 0;
+        const tbody = document.getElementById('resultsBody');
+        if (tbody) tbody.innerHTML = '';
+        const body = document.getElementById('logBody');
+        if (body) body.innerHTML = '';
+        _cb.batchId = null;
+        _cb.tested = 0;
+        _cb.passed = 0;
+        _cb.slow = 0;
+        _cb.failed = 0;
+        _cb.skipped = 0;
+        _cb.snapshotSize = 0;
+        // Drop the prior run's sweep total too: runTotalNodes() now prefers
+        // _liveState.totalNodes, so leaving it set would carry the old "Y" into
+        // the new run until the next state event overwrites it. The immediately
+        // following mergeLiveState() repopulates it from the fresh run's state.
+        if (_liveState) _liveState.totalNodes = 0;
+        cbRender();
+        try { localStorage.removeItem(LIVE_CACHE_KEY); } catch {}
+      } catch {}
+    }
+
+    function handleEvent(d) {
+      switch (d.type) {
+        case 'loop:started':
+          // A fresh run started on the operator side — drop stale rows + log
+          // so /live reflects the new run, not the previous one.
+          resetLiveForNewRun();
+          setStatus('running');
+          _liveState.status = 'running';
+          applyPauseFromState();
+          appendLog({ tag: 'SYS', cat: 'sys', status: 'ok', msg: 'Testing started' });
+          break;
+        case 'loop:stopping':
+          setStatus('stopping');
+          appendLog({ tag: 'SYS', cat: 'sys', status: 'warn', msg: 'Stopping…' });
+          break;
+        case 'loop:stopped':
+          setStatus('idle');
+          _liveState.status = 'idle';
+          _cb.batchId = null;
+          applyPauseFromState();
+          appendLog({ tag: 'SYS', cat: 'sys', msg: 'Testing stopped' });
+          break;
+        case 'loop:error':
+          setStatus('error');
+          _liveState.status = 'error';
+          _cb.batchId = null;
+          applyPauseFromState();
+          appendLog({ tag: 'SYS', cat: 'fail', status: 'fail', errCode: 'TESTER_ERROR', msg: d.error || 'unknown error' });
+          break;
+        case 'iteration:start':
+          appendLog({ tag: 'ROUND', cat: 'sys', msg: `Round ${d.iteration || '?'} starting` });
+          break;
+        case 'iteration:end': {
+          const passed = d.passed != null ? d.passed : 0;
+          const failed = d.failed != null ? d.failed : 0;
+          const total  = passed + failed;
+          const rate   = total > 0 ? Math.round(passed / total * 100) + '%' : '—';
+          appendLog({ tag: 'ROUND', cat: 'sys', status: 'ok', msg: `Round ${d.iteration || '?'} done — ${passed} online, ${failed} down (${rate} online)` });
+          break;
+        }
+        case 'batch:start': {
+          // If this batch is different from the one we have rendered, drop
+          // stale rows from the prior batch so the table reflects the current
+          // run only. Also reset when we have no current batchId but the
+          // table is showing rehydrated rows from a prior session — otherwise
+          // the pager + count carry over from the previous run.
+          const newBatchId = d.batchId || d.batch_id || null;
+          const haveStaleRows = _cb.batchId == null && resultsArr.length > 0;
+          if (newBatchId && ((_cb.batchId && newBatchId !== _cb.batchId) || haveStaleRows)) {
+            resetLiveForNewRun();
+          }
+          setStatus('running');
+          showPaused(false);
+          cbApplyBatchStart(d);
+          // RESUME: the bulk of this batch's nodes were tested before this SSE
+          // connection's event window and are NOT re-emitted — only the
+          // remaining nodes stream. An already-open /live tab would otherwise
+          // show just the post-resume tail. Pull the full current batch once so
+          // the table repaints completely (getResults() is the complete batch
+          // server-side after the resume seed/preserve fix).
+          if (d.resumed) { loadCurrentBatch(); }
+          appendLog({
+            tag: 'ROUND', cat: 'sys', status: 'ok',
+            msg: `Round ${d.iteration != null ? d.iteration : (d.batchId || '?')} — testing ${d.snapshotSize || d.snapshot_size || d.total || '?'} nodes`,
+          });
+          break;
+        }
+        case 'batch:node:result': {
+          // Real-run uses snake_case; test-run fanout uses camelCase.
+          const addr    = d.node_address ?? d.address ?? null;
+          const moniker = d.moniker || '';
+          const mbps    = d.actual_mbps ?? d.actualMbps ?? null;
+          const err     = d.error || d.errorCode || null;
+          const tested  = d.tested_at || d.testedAt || new Date().toISOString();
+          const isDry   = err === 'TEST_RUN_SKIP';
+          const skipped = d.skipped || err === 'TEST_RUN_SKIP';
+          const cc      = d.country_code || d.countryCode || '';
+          const svc     = d.serviceType ?? d.service_type;
+          let typeStr   = null;
+          if (svc != null) {
+            if (svc === 2) typeStr = 'v2ray';
+            else if (svc === 1) typeStr = 'wireguard';
+            else if (typeof svc === 'string') {
+              typeStr = normalizeServiceType(svc) || typeStr;
+            }
+          }
+
+          const baseLog = {
+            transport: typeStr || '',
+            cc,
+            moniker: moniker || '',
+            addr: addr || '',
+          };
+
+          if (skipped) {
+            appendLog({ ...baseLog, tag: 'SKIP', cat: 'node', status: 'warn',
+              mbps: mbps != null ? Number(mbps) : null,
+              msg: 'simulated (no real test)' });
+          } else if (mbps != null && mbps > 0) {
+            const v = Number(mbps);
+            appendLog({ ...baseLog, tag: v >= 10 ? 'PASS' : 'SLOW', cat: 'node', status: v >= 10 ? 'pass' : 'warn', mbps: v });
+          } else if (err) {
+            appendLog({ ...baseLog, tag: 'FAIL', cat: 'fail', status: 'fail', errCode: err });
+          } else {
+            appendLog({ ...baseLog, tag: 'NODE', cat: 'node', msg: 'no result' });
+          }
+
+          if (!addr) return;
+          const resultMbps = skipped ? null : (mbps != null ? Number(mbps) : null);
+          upsert({
+            address:    addr,
+            moniker,
+            country:    d.country || '',
+            countryCode: d.country_code || d.countryCode || '',
+            city:       d.city || '',
+            type:       typeStr,
+            actualMbps: resultMbps,
+            baselineAtTest: d.baselineMbps != null ? Number(d.baselineMbps) : (d.baseline_mbps != null ? Number(d.baseline_mbps) : null),
+            peers:      d.peers != null ? Number(d.peers) : null,
+            maxPeers:   d.maxPeers != null ? Number(d.maxPeers) : (d.max_peers != null ? Number(d.max_peers) : null),
+            error:      err || null,
+            errorCode:  err || null,
+            skipped,
+            inPlan:     d.inPlan === true,
+            testRun:    err === 'TEST_RUN_SKIP',
+            testedAt:   tested,
+          });
+          cbApplyNodeResult();
+          break;
+        }
+        case 'batch:end': {
+          cbApplyBatchEnd();
+          const next   = d.next_in_ms ? Math.round(d.next_in_ms / 1000) : null;
+          const passed = d.passed != null ? d.passed : _cb.passed;
+          const failed = d.failed != null ? d.failed : _cb.failed;
+          const total  = passed + failed;
+          const rate   = total > 0 ? Math.round(passed / total * 100) + '%' : '—';
+          const tail   = next != null ? ` · next round in ${next}s` : '';
+          appendLog({
+            tag: 'ROUND', cat: 'sys', status: 'ok',
+            msg: `Round done — ${passed} online, ${failed} down (${rate} online)${tail}`,
+          });
+          showToast(`Round done · ${passed}/${total} online${tail}`);
+          break;
+        }
+        case 'batch:gap': {
+          cbApplyGap(d);
+          setStatus('idle');
+          const gap = d.next_in_ms ? Math.round(d.next_in_ms / 1000) : null;
+          appendLog({ tag: 'ROUND', cat: 'sys', msg: gap != null ? `Next round in ${gap}s` : 'Waiting for next round' });
+          break;
+        }
+        case 'init': {
+          const running = !!(d.status && d.status.running);
+          const midBatch = !!d.batchId;
+          setStatus(running || midBatch ? 'running' : 'idle');
+          // Defer the actual paused-overlay decision until after we've merged
+          // the full state below so applyPauseFromState sees the latest status.
+          if (!_liveState.status) _liveState.status = running ? 'running' : 'idle';
+          applyPauseFromState();
+          if (d.batchId && _cb.batchId == null) {
+            _cb.batchId = d.batchId;
+            if (d.snapshotSize) _cb.snapshotSize = d.snapshotSize;
+            cbRender();
+          }
+          // Seed the log panel with the persisted backlog so a page refresh
+          // mid-audit doesn't blank the activity log.
+          if (Array.isArray(d.logs) && d.logs.length) {
+            seedLogBacklog(d.logs);
+          }
+          // Mirror admin: full state snapshot + per-node results so /live paints
+          // identically on connect — not only on subsequent updates.
+          if (d.state && typeof d.state === 'object') {
+            // If localStorage rehydrated rows from a previous run number,
+            // discover the mismatch on first init and wipe BEFORE the
+            // results-replay block below paints fresh-run rows on top.
+            const initRunNum = d.state.activeRunNumber != null ? d.state.activeRunNumber : null;
+            if (_prevActiveRunNumber != null && initRunNum != null && initRunNum !== _prevActiveRunNumber) {
+              resetLiveForNewRun();
+            }
+            mergeLiveState(d.state);
+            _prevActiveRunNumber = initRunNum;
+            _prevStatus = d.state.status || null;
+          }
+          // Init is authoritative for the current run. If REST hydration
+          // painted stale rows from a previous batch, drop any rows not in
+          // the init's results list when the run is actively in flight.
+          // This is what stops /live from showing "253/1040" from test #46
+          // while admin is mid-flight on test #47.
+          const _stateRunning = d.state && (d.state.status === 'running' || d.state.status === 'paused');
+          if (_stateRunning && Array.isArray(d.results)) {
+            const liveAddrs = new Set(d.results.map(r => r && r.address).filter(Boolean));
+            if (resultsArr.length > 0 && (resultsArr.length > liveAddrs.size + 5)) {
+              // Painted >> live → REST seeded historical rows. Wipe all and
+              // let the init's results array (and subsequent SSE events) be
+              // the only source of truth for the live table.
+              resultsArr.length = 0;
+              const tbody = document.getElementById('resultsBody');
+              if (tbody) tbody.innerHTML = '';
+              _cb.tested = 0; _cb.passed = 0; _cb.slow = 0; _cb.failed = 0; _cb.skipped = 0;
+            }
+          }
+          if (Array.isArray(d.results) && d.results.length) {
+            for (const r of d.results) {
+              upsert({
+                address:    r.address,
+                moniker:    r.moniker || '',
+                country:    r.country || '',
+                countryCode: r.countryCode || '',
+                city:       r.city || '',
+                type:       normalizeServiceType(r.serviceType ?? r.type),
+                actualMbps: r.actualMbps != null ? Number(r.actualMbps) : null,
+                baselineAtTest: r.baselineAtTest != null ? Number(r.baselineAtTest) : null,
+                peers:      r.peers != null ? Number(r.peers) : null,
+                maxPeers:   r.maxPeers != null ? Number(r.maxPeers) : null,
+                error:      r.error || null,
+                errorCode:  r.errorCode || null,
+                skipped:    !!r.skipped,
+                inPlan:     r.inPlan === true,
+                testRun:    r.errorCode === 'TEST_RUN_SKIP',
+                testedAt:   r.testedAt || null,
+              });
+            }
+            // Sync the current-batch counter to the replayed rows so the Tested
+            // tile + cb panel reflect actual progress on first paint; cbRender
+            // (below) derives the Passed SLA / Slow / Failed partition.
+            _cb.tested = resultsArr.length;
+          }
+          applyHeaderStatsFromState();
+          renderLiveStats();
+          if (_cb.batchId) cbRender();
+          break;
+        }
+        case 'log': {
+          // Carry the server's emission ts so the line shows WHEN it happened.
+          if (d.msg) appendLog({ ts: d.ts, msg: d.msg });
+          break;
+        }
+        case 'state': {
+          // Admin emits broadcast('state', { state }) — server forwards full
+          // sanitized state. Mirror counters into _liveState + header + tiles.
+          if (d.state) {
+            const newRunNum = d.state.activeRunNumber != null ? d.state.activeRunNumber : null;
+            const newStatus = d.state.status || null;
+            const runChanged = newRunNum != null && _prevActiveRunNumber != null && newRunNum !== _prevActiveRunNumber;
+            if (runChanged) {
+              resetLiveForNewRun();
+            }
+            _prevActiveRunNumber = newRunNum;
+            _prevStatus = newStatus;
+            mergeLiveState(d.state);
+            // Direct /api/start runs (p2p / sub-plan / test-run) signal stop and
+            // natural finish via this `state` event — they do NOT emit the
+            // `loop:stopped` event the continuous runner uses. So the terminal
+            // transition must be handled here too, or /live stays stuck on
+            // "running" with a climbing ETA after the admin presses Stop.
+            if (newStatus === 'stopped' || newStatus === 'done' ||
+                newStatus === 'error'   || newStatus === 'idle') {
+              cbFreeze(newStatus);
+            } else if (newStatus === 'running') {
+              setStatus(newStatus);
+            } else if (newStatus && newStatus.indexOf('paused') === 0) {
+              // paused_balance / paused_internet — show a friendly 'paused' label.
+              // Not terminal: don't cbFreeze (keep startedAt so the resumed run's
+              // ETA continues). The ETA is frozen meanwhile by the server:
+              // computeEtaRemainingMs returns null when status !== 'running', so
+              // the broadcast etaRemainingMs goes null, anchorEta clears
+              // _etaAnchor, and cbRender shows "ETA —".
+              setStatus('paused');
+            }
+            renderLiveStats();
+            if (_cb.batchId) cbRender();
+          }
+          break;
+        }
+        case 'result': {
+          // Same shape as admin: broadcast('result', { result }). Upsert by
+          // address so /live's table matches admin row-for-row.
+          const r = d.result;
+          if (!r || !r.address) break;
+          upsert({
+            address:    r.address,
+            moniker:    r.moniker || '',
+            country:    r.country || '',
+            countryCode: r.countryCode || '',
+            city:       r.city || '',
+            type:       normalizeServiceType(r.serviceType ?? r.type),
+            actualMbps: r.actualMbps != null ? Number(r.actualMbps) : null,
+            baselineAtTest: r.baselineAtTest != null ? Number(r.baselineAtTest) : null,
+            peers:      r.peers != null ? Number(r.peers) : null,
+            maxPeers:   r.maxPeers != null ? Number(r.maxPeers) : null,
+            error:      r.error || null,
+            errorCode:  r.errorCode || null,
+            skipped:    !!r.skipped,
+            inPlan:     r.inPlan === true,
+            testRun:    r.errorCode === 'TEST_RUN_SKIP',
+            testedAt:   r.testedAt || null,
+          });
+          applyHeaderStatsFromState();
+          renderLiveStats();
+          break;
+        }
+        case 'progress': {
+          // Numeric checkpoints from the pipeline (testedNodes, etc.).
+          // Treat as a partial state update so counters/header refresh.
+          // Server forwards { type:'progress', state:{…} } — merge d.state
+          // (not d) so type/state don't pollute _liveState and totalNodes/
+          // testedNodes/activeRunNumber actually lift. Fall back to d for any
+          // legacy flat-payload emitter.
+          mergeLiveState(d.state || d);
+          break;
+        }
+        default: break;
+      }
+    }
+
+    let _sseEverConnected = false;
+    function connectSSE() {
+      // Only ever hold a stream open for a live, active run. Gating on _activeRun
+      // (not just _broadcastLive) keeps a paused page on its single /api/broadcast
+      // poll — no idle SSE connection, even on a server-initiated reconnect.
+      if (!_broadcastLive || !_activeRun) return;
+      if (_sse) { try { _sse.close(); } catch (_) {} }
+      try {
+        _sse = new EventSource('/api/public/events');
+        _sse.onmessage = (ev) => {
+          let d = null;
+          try { d = JSON.parse(ev.data || '{}'); } catch (_) { return; }
+          if (!d || !d.type) return;
+          try { handleEvent(d); } catch (_) {}
+        };
+        _sse.onopen = () => {
+          _sseRetry = 1000;
+          // On reconnect, re-fetch current batch via REST so the table doesn't
+          // sit on stale data until the next live event arrives.
+          if (_sseEverConnected) {
+            try { loadCurrentBatch(); } catch (_) {}
+          }
+          _sseEverConnected = true;
+        };
+        _sse.onerror = () => {
+          try { _sse.close(); } catch (_) {}
+          _sse = null;
+          if (_broadcastLive && _activeRun) {
+            setTimeout(connectSSE, _sseRetry);
+            _sseRetry = Math.min(_sseRetry * 2, SSE_MAX_RETRY);
+          }
+        };
+      } catch (_) {}
+    }
+
+    // Seed: fetch current batch so an already-running loop fills the table on first load.
+    // If no current batch, fall back to the last finished run so visitors always see history.
+    async function loadCurrentBatch() {
+      // Broadcast off: always show the paused overlay even if there's a live run.
+      // We still hydrate the table with the historical/last-run data underneath
+      // so the page isn't blank if the operator flips broadcast on later.
+      const broadcastOff = !_broadcastLive;
+      try {
+        let res = await fetch('/api/public/runs/current', { credentials: 'same-origin' });
+        let isHistorical = false;
+        if (!res.ok) {
+          res = await fetch('/api/public/runs/last', { credentials: 'same-origin' });
+          isHistorical = true;
+          if (!res.ok) { showPaused(true); return; }
+        }
+        const data = await res.json();
+        if (isHistorical || broadcastOff) showPaused(true);
+        const nodes = (data && data.nodes) || (data && data.results) || [];
+        // Mirror runMode/runPlanId from REST into _liveState so the mode badge
+        // paints on first load before any SSE state event arrives.
+        if (data && !isHistorical) {
+          if (data.runMode) _liveState.runMode = data.runMode;
+          if (data.runPlanId) _liveState.runPlanId = data.runPlanId;
+          if (data.mode === 'test') _liveState.testRun = true;
+        }
+        if (data && (data.started_at || data.id)) {
+          cbApplyBatchStart({
+            batchId: data.id,
+            iteration: data.iteration ?? null,
+            startedAt: data.started_at,
+            snapshotSize: data.snapshot_size || data.snapshotSize || data.total || 0,
+          });
+          const passedSoFar = (data.passed != null) ? data.passed : data.pass_count_so_far;
+          if (passedSoFar != null) _cb.passed = passedSoFar;
+          const testedSoFar = (Array.isArray(nodes) ? nodes.length : 0) || data.node_count_so_far || 0;
+          if (testedSoFar > 0) {
+            _cb.tested = testedSoFar;
+            _cb.failed = (data.failed != null) ? data.failed : Math.max(0, testedSoFar - _cb.passed);
+          }
+          cbRender();
+          // Server returned an active batch — only un-pause if broadcast is also on.
+          // When broadcast is off, the user must see the paused overlay even if a
+          // run is actively in flight on the operator side.
+          if (!isHistorical && !broadcastOff) showPaused(false);
+        }
+        // Only paint per-node rows when REST returned a *live* in-flight batch.
+        // The historical fallback (/api/public/runs/last → finished batch) is
+        // also used when there's no active batch yet — painting those rows
+        // here causes /live to show stale data (e.g. 253/1040 from the prior
+        // run) until SSE results trickle in. Counters (#tested, #failed) are
+        // already wiped above when isHistorical+broadcastOff would be wrong;
+        // here we just refuse to paint per-node rows for a finished batch
+        // when broadcast is on, because the operator is mid-run on a NEW one.
+        const paintRows = Array.isArray(nodes) && (!isHistorical || broadcastOff);
+        if (paintRows) {
+          for (const n of nodes) {
+            const addr = n.node_address || n.address;
+            if (!addr) continue;
+            const t = n.type || ((n.service_type === 2) ? 'v2ray' : (n.service_type === 1) ? 'wireguard' : null);
+            upsert({
+              address: addr,
+              moniker: n.moniker || '',
+              country: n.country || '',
+              countryCode: n.countryCode || n.country_code || '',
+              city: n.city || '',
+              type: t,
+              actualMbps: (n.actualMbps != null) ? Number(n.actualMbps) :
+                          (n.actual_mbps != null) ? Number(n.actual_mbps) : null,
+              baselineAtTest: (n.baselineMbps != null) ? Number(n.baselineMbps)
+                            : (n.baseline_mbps != null) ? Number(n.baseline_mbps) : null,
+              peers: n.peers != null ? Number(n.peers) : null,
+              maxPeers: (n.maxPeers != null) ? Number(n.maxPeers) :
+                         (n.max_peers != null) ? Number(n.max_peers) : null,
+              error: n.error || null,
+              errorCode: n.errorCode || n.error_code || null,
+              skipped: !!n.skipped,
+              inPlan: n.inPlan === true || n.in_plan === true,
+              testRun: n.error_code === 'TEST_RUN_SKIP',
+              testedAt: n.testedAt || n.tested_at || null,
+            });
+          }
+        } else if (isHistorical && _broadcastLive) {
+          // Broadcast ON but no live batch in DB yet. Two cases:
+          //  (a) cold boot, no audit running   → wipe so /live shows empty.
+          //  (b) sub-plan/p2p run is mid-flight but withBatchTracking has
+          //      not yet flushed its first 'result' (online-scan/baseline
+          //      phase, or pre-first-result race) → seedLiveStateFromRest
+          //      already painted authoritative rows from in-memory
+          //      getResults(); wiping them blanks the dVPN Node Connections
+          //      table for the user. Let SSE take over instead.
+          const adminRunning = _liveState && (_liveState.status === 'running' || _liveState.status === 'paused');
+          if (!adminRunning) {
+            resultsArr.length = 0;
+            const tbody = document.getElementById('resultsBody');
+            if (tbody) tbody.innerHTML = '';
+            _cb.batchId = null; _cb.tested = 0; _cb.passed = 0; _cb.failed = 0; _cb.snapshotSize = 0;
+            cbRender();
+          }
+        }
+      } catch (_) {}
+    }
+
+    // ─── Per-row failure copy ───
+    async function copyRowFailure(ev) {
+      ev.stopPropagation();
+      const btn = ev.currentTarget;
+      const addr = btn.dataset.addr;
+      const moniker = btn.dataset.moniker || '';
+      if (!addr) { showToast('No address'); return; }
+      const original = btn.innerHTML;
+      btn.innerHTML = '…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/public/node/' + encodeURIComponent(addr) + '/errors?limit=1', {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const errs = (data && data.errors) || [];
+        if (!errs.length) {
+          showToast('No stored failure log for this node yet');
+          btn.innerHTML = original; btn.disabled = false; return;
+        }
+        const er = errs[0];
+        const lines = [
+          'Sentinel Node Tester — Failure Log',
+          '──────────────────────────────────',
+          'Node:       ' + (moniker || '—'),
+          'Address:    ' + addr,
+          'Stage:      ' + (er.stage || '—'),
+          'Error Code: ' + (er.error_code || '—'),
+          'Message:    ' + (er.error_message || '—'),
+          'Captured:   ' + (er.captured_at ? fmtUtc(er.captured_at) : '—'),
+          '',
+        ];
+        if (er.log_snippet) { lines.push('Log Snippet:'); lines.push(er.log_snippet); }
+        const txt = lines.join('\n');
+        try {
+          await navigator.clipboard.writeText(txt);
+        } catch (_) {
+          const ta = document.createElement('textarea');
+          ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        btn.innerHTML = '✓';
+        showToast('Failure log copied');
+      } catch (err) {
+        btn.innerHTML = '!';
+        showToast('Copy failed: ' + (err.message || 'unknown'));
+      }
+      setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+    }
+
+    async function showRowFailurePopup(ev) {
+      ev.stopPropagation();
+      const btn = ev.currentTarget;
+      const addr = btn.dataset.addr;
+      const moniker = btn.dataset.moniker || '';
+      if (!addr) return;
+
+      const existing = document.getElementById('errorPopupOverlay');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'errorPopupOverlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:var(--glass-bg);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      // Scoped Escape handler — closes ONLY this popup (top-most layer) and
+      // removes itself on close. stopImmediatePropagation so it can't bubble
+      // to any lower-layer Escape handler and double-close.
+      const closeErrorPopup = () => {
+        document.removeEventListener('keydown', onPopupKeydown, true);
+        overlay.remove();
+      };
+      function onPopupKeydown(e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          closeErrorPopup();
+        }
+      }
+      document.addEventListener('keydown', onPopupKeydown, true);
+      overlay.onclick = (e) => { if (e.target === overlay) closeErrorPopup(); };
+      const popup = document.createElement('div');
+      popup.style.cssText = 'background:var(--bg-card-solid);border:1px solid var(--border);border-radius:16px;padding:24px 28px;max-width:780px;width:92%;max-height:85vh;overflow-y:auto;color:var(--text);font-family:var(--font-display);line-height:1.55';
+      popup.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:1px;margin:0">Node Error Details</h2>
+          <span id="errorPopupCloseX" style="cursor:pointer;color:var(--text-dim);font-size:22px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%">&times;</span>
+        </div>
+        <div id="errorPopupBody" style="font-size:13px;color:var(--text-dim)">Loading…</div>
+      `;
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+      const xBtn = document.getElementById('errorPopupCloseX');
+      if (xBtn) xBtn.onclick = closeErrorPopup;
+
+      try {
+        const res = await fetch('/api/public/node/' + encodeURIComponent(addr) + '/errors?limit=1', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const errs = (data && data.errors) || [];
+        const body = document.getElementById('errorPopupBody');
+        if (!body) return;
+        if (!errs.length) {
+          body.innerHTML = '<div style="color:var(--text-muted)">No stored failure log for this node yet.</div>';
+          return;
+        }
+        const er = errs[0];
+        const eh = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        const captured = er.captured_at ? fmtUtc(er.captured_at) : '—';
+        // Parse the persisted raw result so we can surface every diagnostic
+        // field the pipeline captured at fail time (peers, transport, diag).
+        let raw = {}; let diag = {};
+        try { raw = er.raw_json ? JSON.parse(er.raw_json) : {}; } catch {}
+        diag = (raw && raw.diag) || {};
+        const svcType = (solProtocol(raw.type ?? er.service_type) || {}).name || '—';
+        const yn = (v) => v === true || v === 1 ? '✓ yes' : v === false || v === 0 ? '✗ no' : '—';
+        const num = (v, suffix = '') => (v == null || Number.isNaN(Number(v))) ? '—' : (Number(v) + suffix);
+        const row = (label, value) => `
+          <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <div style="color:var(--text-muted);font-size:12px">${label}</div>
+            <div style="color:var(--text);word-break:break-all;font-size:12.5px">${value == null || value === '' ? '—' : value}</div>
+          </div>`;
+        const monoVal = (v) => v == null || v === '' ? '—' : `<span style="font-family:var(--font-mono);font-size:12px">${eh(v)}</span>`;
+        const sectionTitle = (t) => `<div style="margin:18px 0 6px;color:var(--text);font-weight:700;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--border)">${t}</div>`;
+        const cc = (er.country_code && er.country_code.length === 2)
+          ? er.country_code.toUpperCase()
+          : _countryToCode(er.country || '');
+        const flagHtml = cc ? flagFor(cc) : '';
+        const countryName = er.country && er.country.length !== 2 ? er.country : (cc || er.country || '');
+        const countryCell = (flagHtml || countryName)
+          ? `<span style="display:inline-flex;align-items:center;gap:8px">${flagHtml}<span>${eh(countryName) || '—'}</span></span>`
+          : '—';
+
+        // Per-stage diagnostics — pull every diag.* the pipeline writes
+        const wgDiag = [];
+        if (diag.wgAssignedAddrs) wgDiag.push(row('WG Assigned Addrs', monoVal(Array.isArray(diag.wgAssignedAddrs) ? diag.wgAssignedAddrs.join(', ') : diag.wgAssignedAddrs)));
+        if (diag.wgServerEndpoint) wgDiag.push(row('WG Server Endpoint', monoVal(diag.wgServerEndpoint)));
+        if (diag.wgSplitIPs) wgDiag.push(row('WG Split IPs', monoVal(Array.isArray(diag.wgSplitIPs) ? diag.wgSplitIPs.join(', ') : diag.wgSplitIPs)));
+
+        const v2Diag = [];
+        if (diag.v2rayProto) v2Diag.push(row('V2Ray Protocol', monoVal(diag.v2rayProto)));
+        if (diag.v2rayTransport) v2Diag.push(row('V2Ray Transport', monoVal(diag.v2rayTransport)));
+        if (diag.v2raySecurity) v2Diag.push(row('V2Ray Security', monoVal(diag.v2raySecurity)));
+        if (diag.v2rayPort != null) v2Diag.push(row('V2Ray Port', monoVal(diag.v2rayPort)));
+        if (diag.v2rayUUID) v2Diag.push(row('V2Ray UUID', monoVal(diag.v2rayUUID)));
+        if (diag.v2rayMetadataCount != null) v2Diag.push(row('V2Ray Metadata Count', num(diag.v2rayMetadataCount)));
+        if (diag.statusPortFallback) v2Diag.push(row('Status-Port Fallback', '✓ used (advertised port unusable)'));
+        if (diag.discoveredPorts && diag.discoveredPorts.length) v2Diag.push(row('Discovered Open Ports', monoVal(diag.discoveredPorts.join(', '))));
+        if (diag.discoveredPortUsed) v2Diag.push(row('Discovered Port Used', monoVal(diag.discoveredPortUsed)));
+        if (diag.portScanAttempted) v2Diag.push(row('Port Scan Attempted', '✓ yes'));
+
+        const sessDiag = [];
+        if (diag.sessionId) sessDiag.push(row('Session ID', monoVal(diag.sessionId)));
+        if (diag.remoteUrl) sessDiag.push(row('Remote URL', monoVal(diag.remoteUrl)));
+        if (diag.serverHost) sessDiag.push(row('Server Host', monoVal(diag.serverHost)));
+        if (diag.clockDriftSec != null) sessDiag.push(row('Clock Drift', num(diag.clockDriftSec, ' s') + (diag.clockDriftWarning ? ' <span style="color:var(--red);font-size:11px">⚠ exceeded tolerance</span>' : '')));
+        if (diag.googleAccessible != null) sessDiag.push(row('Google Reachable (via tunnel)', yn(diag.googleAccessible) + (diag.googleLatencyMs ? ' · ' + diag.googleLatencyMs + ' ms' : '') + (diag.googleError ? ' · <span style="color:var(--text-muted)">' + eh(diag.googleError) + '</span>' : '')));
+        if (diag.speedtestMethod) sessDiag.push(row('Speedtest Method', monoVal(diag.speedtestMethod)));
+
+        // V2Ray sidecar stdout/stderr — most useful for operator triage
+        const sideCar = [];
+        if (diag.v2rayStdout) sideCar.push(['V2Ray stdout', diag.v2rayStdout]);
+        if (diag.v2rayStderr) sideCar.push(['V2Ray stderr', diag.v2rayStderr]);
+        if (diag.v2rayConfig) sideCar.push(['V2Ray config (sanitized)', typeof diag.v2rayConfig === 'string' ? diag.v2rayConfig : JSON.stringify(diag.v2rayConfig, null, 2)]);
+        if (diag.hsConfig) sideCar.push(['Handshake config (truncated)', diag.hsConfig]);
+        if (diag.v2rayRawMeta) sideCar.push(['V2Ray raw metadata', JSON.stringify(diag.v2rayRawMeta, null, 2)]);
+
+        const block = (title, content) => `
+          <div style="margin-top:10px">
+            <div style="color:var(--text-muted);font-size:11px;margin-bottom:4px;letter-spacing:0.5px">${title}</div>
+            <pre style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-family:var(--font-mono);font-size:11px;line-height:1.5;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0">${eh(content)}</pre>
+          </div>`;
+
+        body.innerHTML = `
+          ${sectionTitle('Summary')}
+          ${row('Node', eh(moniker))}
+          ${row('Address', addr ? `<a href="https://explorer.solana.com/address/${encodeURIComponent(addr)}?cluster=devnet" target="_blank" rel="noopener noreferrer" title="Open in Solana Explorer" style="font-family:var(--font-mono);font-size:12px;color:var(--accent);text-decoration:none">${eh(addr)} ↗</a>` : monoVal(addr))}
+          ${row('Country', countryCell)}
+          ${row('City', eh(er.city))}
+          ${row('Service', svcType)}
+          ${row('Stage', eh(er.stage))}
+          ${row('Captured', eh(captured))}
+          ${row('Message', `<span style="font-family:var(--font-mono);font-size:12px;white-space:pre-wrap">${eh(er.error_message)}</span>`)}
+
+          ${sectionTitle('Network State at Fail Time')}
+          ${row('Peers', num(raw.peers != null ? raw.peers : null))}
+          ${row('Max Peers', num(raw.maxPeers != null ? raw.maxPeers : null))}
+          ${row('Advertised Mbps', num(er.advertised_mbps, ' Mbps'))}
+          ${row('Tester Baseline', raw.baselineAtTest != null ? num(raw.baselineAtTest, ' Mbps') : '—')}
+          ${row('Dynamic Threshold (50%)', raw.dynamicThreshold != null ? num(raw.dynamicThreshold, ' Mbps') : '—')}
+          ${row('SLA Applicable', yn(raw.slaApplicable))}
+          ${row('Timed Out', yn(raw.timedOut))}
+          ${row('Latency', num(er.latency_ms, ' ms'))}
+
+          ${sectionTitle('Tester Environment')}
+          ${row('Tester client', monoVal(er.sdk || raw.sdk))}
+          ${row('Tester OS', monoVal(er.tester_os || raw.os))}
+          ${row('Run ID', monoVal(er.run_id))}
+          ${row('Continent', eh(er.continent))}
+
+          ${wgDiag.length ? sectionTitle('WireGuard Diagnostics') + wgDiag.join('') : ''}
+          ${v2Diag.length ? sectionTitle('V2Ray Diagnostics') + v2Diag.join('') : ''}
+          ${sessDiag.length ? sectionTitle('Session / Tunnel Diagnostics') + sessDiag.join('') : ''}
+
+          ${sideCar.length ? sectionTitle('Sidecar Output') + sideCar.map(([t, c]) => block(t, c)).join('') : ''}
+
+          ${er.log_snippet ? sectionTitle('Tester Log Snippet') + `
+            <pre style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-family:var(--font-mono);font-size:11.5px;line-height:1.5;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0">${eh(er.log_snippet)}</pre>` : ''}
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+            <button id="errorPopupCopyBtn" class="row-copy-btn" style="padding:6px 14px">⎘ Copy Full Report</button>
+            <button id="errorPopupCloseBtn" class="row-copy-btn" style="padding:6px 14px">Close</button>
+          </div>
+        `;
+        const closeBtn = document.getElementById('errorPopupCloseBtn');
+        if (closeBtn) closeBtn.onclick = closeErrorPopup;
+        const copyBtn = document.getElementById('errorPopupCopyBtn');
+        if (copyBtn) {
+          copyBtn.onclick = async () => {
+            const lines = [
+              'Sentinel Node Tester — Failure Log',
+              '══════════════════════════════════',
+              '[Summary]',
+              'Node:        ' + (moniker || '—'),
+              'Address:     ' + addr,
+              'Country:     ' + (countryName || cc || '—'),
+              'City:        ' + (er.city || '—'),
+              'Service:     ' + svcType,
+              'Stage:       ' + (er.stage || '—'),
+              'Error Code:  ' + (er.error_code || '—'),
+              'Message:     ' + (er.error_message || '—'),
+              'Captured:    ' + captured,
+              '',
+              '[Network State at Fail Time]',
+              'Peers:              ' + (raw.peers != null ? raw.peers : '—'),
+              'Max Peers:          ' + (raw.maxPeers != null ? raw.maxPeers : '—'),
+              'Advertised Mbps:    ' + (er.advertised_mbps != null ? er.advertised_mbps + ' Mbps' : '—'),
+              'Tester Baseline:    ' + (raw.baselineAtTest != null ? raw.baselineAtTest + ' Mbps' : '—'),
+              'Dynamic Threshold:  ' + (raw.dynamicThreshold != null ? raw.dynamicThreshold + ' Mbps' : '—'),
+              'SLA Applicable:     ' + (raw.slaApplicable === true ? 'yes' : raw.slaApplicable === false ? 'no' : '—'),
+              'Timed Out:          ' + (raw.timedOut === true ? 'yes' : raw.timedOut === false ? 'no' : '—'),
+              'Latency:            ' + (er.latency_ms != null ? er.latency_ms + ' ms' : '—'),
+              '',
+              '[Tester Environment]',
+              'Client: ' + (er.sdk || raw.sdk || '—'),
+              'OS:     ' + (er.tester_os || raw.os || '—'),
+              'Run ID: ' + (er.run_id || '—'),
+              '',
+            ];
+            const diagKeys = Object.keys(diag || {});
+            if (diagKeys.length) {
+              lines.push('[Diagnostics]');
+              for (const k of diagKeys) {
+                const v = diag[k];
+                if (v == null) continue;
+                const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                lines.push(k + ':'.padEnd(Math.max(2, 22 - k.length), ' ') + ' ' + s);
+              }
+              lines.push('');
+            }
+            if (er.log_snippet) { lines.push('[Tester Log Snippet]'); lines.push(er.log_snippet); }
+            const txt = lines.join('\n');
+            const original = copyBtn.innerHTML;
+            copyBtn.disabled = true;
+            try {
+              try {
+                await navigator.clipboard.writeText(txt);
+              } catch (_) {
+                const ta = document.createElement('textarea');
+                ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+              }
+              copyBtn.innerHTML = '✓ Copied';
+              showToast('Failure log copied');
+            } catch (err) {
+              copyBtn.innerHTML = '! Failed';
+              showToast('Copy failed: ' + (err.message || 'unknown'));
+            }
+            setTimeout(() => { copyBtn.innerHTML = original; copyBtn.disabled = false; }, 1500);
+          };
+        }
+      } catch (err) {
+        const body = document.getElementById('errorPopupBody');
+        if (body) body.innerHTML = '<div style="color:var(--red)">Failed to load: ' + eh(err.message || 'unknown') + '</div>';
+      }
+    }
+  </script>
+  <script src="/about-modal.js"></script>
+</body>
+</html>

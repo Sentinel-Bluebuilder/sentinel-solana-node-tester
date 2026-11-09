@@ -1,0 +1,38 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+*.orig
+*.bak
+
+# Runtime data: SQLite DB, settings, per-run raw results, client scratch homes (hold the wallet key while a test runs)
+data/
+results/
+
+# Generated from dvpn.source.json by scripts/patch-idl.mjs (postinstall)
+chain/idl/dvpn.devnet.json
+
+# Session cookies for the CLI
+.cli-session.json
+.admin-session.json
+
+# Keys never live here
+keys/
+*.key.json
+
+# E2E artifacts
+test/e2e-last-run.log
+test/cli-e2e-last-run.log
+results-boot.log
+test/e2e-state.json
+test/fixtures/*.bin
+
+# Brand assets ship; other binaries stay out.
+*.png
+*.jpg
+!logo.jpg
+!sentinel-shield.png
+test/box-admin-token
+test/box-*.log
+test/box-evidence/

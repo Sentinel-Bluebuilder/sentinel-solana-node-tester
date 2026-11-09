@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Node Detail — Sentinel Audit</title>
+  <link rel="stylesheet" href="/sentinel.css">
+  <style>
+    :root {
+      /* Page-local aliases — mapped onto Sentinel design tokens */
+      --panel: var(--bg-card-solid);
+      --panel2: var(--bg-card);
+      --muted: var(--text-dim);
+      --pass: var(--green);
+      --fail: var(--red);
+      --warn: var(--yellow);
+      --none: var(--border-strong);
+    }
+    html, body {
+      font-size: 14px;
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      margin-bottom: 10px;
+    }
+
+    .brand-logo {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+
+    .header-brand-name {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .back { display: inline-block; margin-bottom: 10px; font-size: 13px; }
+    .title {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px;
+    }
+    .title h1 { font-size: 20px; font-weight: 600; }
+    .title .addr {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
+    .meta span { margin-right: 12px; }
+    .copy-btn {
+      background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+    }
+    .copy-btn:hover { background: var(--border); }
+
+    main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+    section { margin-bottom: 28px; }
+    h2 {
+      font-size: 15px; font-weight: 600; margin-bottom: 12px;
+      color: var(--text); text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    }
+    .summary-cell {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      padding: 14px;
+    }
+    .summary-cell .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .summary-cell .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+
+    .chart-wrap {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      padding: 16px;
+    }
+    .chart-wrap svg { width: 100%; height: 240px; display: block; }
+    .chart-legend { margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .chart-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+    .uptime-bar {
+      display: flex; gap: 2px; background: var(--panel); padding: 12px;
+      border: 1px solid var(--border); border-radius: 6px;
+      overflow-x: auto;
+    }
+    .uptime-seg { flex: 1 0 6px; height: 32px; border-radius: 2px; min-width: 6px; }
+    .uptime-seg.pass { background: var(--pass); }
+    .uptime-seg.fail { background: var(--fail); }
+    .uptime-seg.none { background: var(--none); }
+
+    table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--panel2); font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: none; }
+    td.mono { font-family: var(--font-mono); font-size: 12px; }
+    td.pass { color: var(--pass); }
+    td.fail { color: var(--fail); }
+
+    .error-group {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px; margin-bottom: 8px;
+    }
+    .error-group .eg-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      cursor: pointer;
+    }
+    .error-group .eg-code { font-weight: 600; color: var(--warn); font-family: var(--font-mono); }
+    .error-group .eg-count { color: var(--muted); font-size: 12px; }
+    .error-group .eg-msg { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .error-group .eg-list { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: none; }
+    .error-group.open .eg-list { display: block; }
+    .error-group .eg-list div { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 4px; word-break: break-all; }
+
+    .loading { color: var(--muted); padding: 40px; text-align: center; }
+    .error-msg { color: var(--fail); padding: 20px; background: var(--panel); border: 1px solid var(--fail); border-radius: 6px; }
+
+    @media (max-width: 768px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      main { padding: 14px; }
+      header { padding: 14px; }
+      .title h1 { font-size: 17px; }
+      .chart-wrap svg { height: 180px; }
+    }
+  </style>
+</head>
+<body class="boot-pending">
+<script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark'; document.addEventListener('DOMContentLoaded', () => document.body.classList.remove('boot-pending'));</script>
+  <header>
+    <a href="/" class="header-brand">
+      <svg width="20" height="20" viewBox="0 0 30 31" fill="none" xmlns="http://www.w3.org/2000/svg" class="brand-logo" aria-hidden="true">
+        <path d="M27.3966 1.4387C27.7459 1.4387 28.0281 1.72093 28.0281 2.07017V12.1372V12.7626C28.0362 14.0032 28.0464 15.5525 27.8291 17.1951C27.5773 19.1099 27.0778 20.6672 26.3103 21.9566C23.8068 26.1535 19.3093 29.2297 15.0879 29.6399C15.0676 29.6419 15.0473 29.6439 15.027 29.6439C15.0067 29.6439 14.9864 29.6439 14.9661 29.6399C10.7407 29.2256 6.24323 26.1515 3.74372 21.9566C2.97214 20.6672 2.47671 19.1078 2.22493 17.1951C2.0097 15.5525 2.01986 14.0053 2.03001 12.7626V12.1372L2.03204 2.07017C2.03204 1.72093 2.31427 1.4387 2.66351 1.4387H27.3966ZM27.3966 0.17981H2.66148C1.61985 0.17981 0.771119 1.02854 0.771119 2.07017V12.7565C0.758936 13.9606 0.746754 15.6154 0.974166 17.3576C1.25031 19.4469 1.80057 21.1606 2.65945 22.6002C3.97926 24.8134 5.82292 26.7667 7.99349 28.253C10.1844 29.7515 12.5458 30.6632 14.826 30.8886C14.891 30.8967 14.958 30.9008 15.025 30.9008C15.092 30.9008 15.157 30.8967 15.224 30.8886C17.5022 30.6632 19.8636 29.7536 22.0545 28.2551C24.225 26.7688 26.0707 24.8134 27.3926 22.6002C28.2535 21.1586 28.8037 19.4449 29.0779 17.3596C29.3053 15.6337 29.2951 14.0418 29.287 12.7606V12.1332V2.0722C29.287 1.02854 28.4383 0.18184 27.3966 0.18184V0.17981Z" fill="currentColor"/>
+        <path d="M25.6792 14.1846C25.864 14.3247 26.1279 14.1927 26.1279 13.9612L26.1218 12.6881V3.61598C26.1239 3.45963 25.998 3.33374 25.8416 3.33374H4.21715C4.0608 3.33374 3.93491 3.45963 3.93491 3.61598V9.1957C3.93491 9.43529 3.98974 9.67083 4.09735 9.88402C4.20496 10.0972 4.35928 10.284 4.55217 10.4262L20.8182 22.5907C20.9604 22.6963 20.9705 22.9013 20.8406 23.0232C20.5401 23.3074 20.2233 23.5734 19.8944 23.8252C19.7929 23.9024 19.6548 23.9024 19.5553 23.8272L4.38365 12.4587C4.19887 12.3206 3.93491 12.4505 3.93491 12.684C3.93491 14.6333 3.76232 18.2699 5.40091 21.0557C7.23036 24.1684 10.3715 26.6252 13.604 27.4212C14.071 27.5349 14.538 27.6161 15.005 27.6587C15.0233 27.6608 15.0416 27.6608 15.0578 27.6587C17.1736 27.4679 19.3259 26.5014 21.1736 25.0415C21.6365 24.6739 22.0812 24.278 22.5035 23.8536C23.336 23.0151 24.0629 22.077 24.6619 21.0597C25.2041 20.1399 25.5472 19.1267 25.7645 18.1135C25.8132 17.8942 25.8538 17.6729 25.8904 17.4495C25.9858 16.8688 25.7502 16.282 25.2812 15.9308L11.5086 5.63223C11.2933 5.46979 11.405 5.12664 11.6791 5.12664H13.5025C13.5634 5.12664 13.6223 5.14695 13.673 5.1835L25.6812 14.1866L25.6792 14.1866L25.6792 14.1846Z" fill="currentColor"/>
+      </svg>
+      <span class="header-brand-name">Sentinel</span>
+    </a>
+    <a href="/" class="back">&larr; Back to dashboard</a>
+    <div class="title">
+      <h1 id="moniker">Loading&hellip;</h1>
+      <span class="addr" id="addr"></span>
+      <button class="copy-btn" id="copyBtn" onclick="copyAddr()">Copy</button>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <main>
+    <div id="content"><div class="loading">Loading node detail&hellip;</div></div>
+  </main>
+
+  <script>
+    const addr = decodeURIComponent(window.location.pathname.replace(/^\/node\//, ''));
+    document.getElementById('addr').textContent = addr;
+
+    function copyAddr() {
+      navigator.clipboard.writeText(addr);
+      const btn = document.getElementById('copyBtn');
+      const old = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    }
+
+    function fmtMbps(v)   { return v == null ? '-' : v.toFixed(2) + ' Mbps'; }
+    function fmtRel(ts)   {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return Math.floor(s / 86400) + 'd ago';
+    }
+    function fmtDate(ts)  { return new Date(ts).toLocaleString(); }
+    function esc(s)       { return String(s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+    async function fetchJson(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }
+
+    function buildBandwidthChart(history) {
+      if (!history || history.length === 0) {
+        return '<div class="chart-wrap"><div class="loading">No bandwidth data yet.</div></div>';
+      }
+      // history is newest first; reverse to oldest->newest for chart
+      const data = history.slice().reverse();
+      const W = 800, H = 240, PAD = 32;
+      const mbpsVals = data.map(d => d.actual_mbps).filter(v => v != null);
+      const maxY = Math.max(10, ...mbpsVals, ...data.map(d => d.advertised_mbps || 0));
+      const xStep = (W - PAD * 2) / Math.max(1, data.length - 1);
+      const points = data.map((d, i) => {
+        const x = PAD + i * xStep;
+        const y = H - PAD - ((d.actual_mbps || 0) / maxY) * (H - PAD * 2);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      const adv = data[data.length - 1]?.advertised_mbps;
+      const advY = adv ? (H - PAD - (adv / maxY) * (H - PAD * 2)).toFixed(1) : null;
+
+      return `
+        <div class="chart-wrap">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+            <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="#2a3548" stroke-width="1"/>
+            <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="#2a3548" stroke-width="1"/>
+            ${advY != null ? `<line x1="${PAD}" y1="${advY}" x2="${W - PAD}" y2="${advY}" stroke="#f39c12" stroke-width="1" stroke-dasharray="4 4"/>` : ''}
+            <polyline points="${points}" fill="none" stroke="#4a9eff" stroke-width="2"/>
+            <text x="${PAD - 4}" y="${PAD + 4}" fill="#8a96ab" font-size="10" text-anchor="end">${maxY.toFixed(0)}</text>
+            <text x="${PAD - 4}" y="${H - PAD}" fill="#8a96ab" font-size="10" text-anchor="end">0</text>
+          </svg>
+          <div class="chart-legend">
+            <span><span class="dot" style="background:#4a9eff"></span>Actual Mbps (last ${data.length})</span>
+            ${adv ? `<span style="margin-left:16px"><span class="dot" style="background:#f39c12"></span>Advertised: ${adv.toFixed(1)} Mbps</span>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function buildUptimeBar(history) {
+      if (!history || history.length === 0) {
+        return '<div class="uptime-bar"><div style="color:var(--muted)">No tests yet.</div></div>';
+      }
+      // history is newest first; reverse to oldest->newest
+      const segs = history.slice().reverse().map(h => {
+        const pass = h.pass === 1 || (h.actual_mbps != null && h.actual_mbps > 0);
+        const cls = h.actual_mbps != null ? (pass ? 'pass' : 'fail') : (pass ? 'pass' : 'fail');
+        const title = `${fmtDate(h.tested_at)} — ${pass ? 'PASS' : 'FAIL'}${h.actual_mbps != null ? ' ' + h.actual_mbps.toFixed(2) + ' Mbps' : ''}`;
+        return `<div class="uptime-seg ${cls}" title="${esc(title)}"></div>`;
+      }).join('');
+      return `<div class="uptime-bar">${segs}</div>`;
+    }
+
+    function buildErrorGroups(errors) {
+      if (!errors || errors.length === 0) {
+        return '<div style="color:var(--muted)">No errors logged.</div>';
+      }
+      const byCode = {};
+      for (const e of errors) {
+        const key = e.error_code || e.stage || 'unknown';
+        if (!byCode[key]) byCode[key] = [];
+        byCode[key].push(e);
+      }
+      return Object.entries(byCode)
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([code, list]) => {
+          const recent = list[0];
+          const items = list.slice(0, 20).map(e => {
+            const msg = (e.error_message || e.log_snippet || '').slice(0, 200);
+            return `<div>${fmtDate(e.tested_at || e.created_at)} &mdash; ${esc(msg)}</div>`;
+          }).join('');
+          return `
+            <div class="error-group" onclick="this.classList.toggle('open')">
+              <div class="eg-head">
+                <span class="eg-code">${esc(code)}</span>
+                <span class="eg-count">${list.length} occurrence${list.length > 1 ? 's' : ''}</span>
+              </div>
+              <div class="eg-msg">${esc((recent.error_message || recent.log_snippet || '').slice(0, 160))}</div>
+              <div class="eg-list">${items}</div>
+            </div>
+          `;
+        }).join('');
+    }
+
+    function buildHistoryTable(history) {
+      if (!history || history.length === 0) {
+        return '<div style="color:var(--muted)">No history.</div>';
+      }
+      const SDK_NAMES = { dvpnd:'DVPND' };
+      const OS_NAMES  = { win32:'Win', darwin:'mac', linux:'Lin' };
+      const rows = history.slice(0, 50).map(h => {
+        const pass = h.pass === 1 || (h.actual_mbps != null && h.actual_mbps > 0);
+        const sdk = h.sdk ? (SDK_NAMES[h.sdk] || h.sdk) : '—';
+        const os  = h.tester_os ? (OS_NAMES[h.tester_os] || h.tester_os) : '';
+        const testedBy = sdk + (os ? ' · ' + os : '');
+        return `
+          <tr>
+            <td class="mono">${fmtDate(h.tested_at)}</td>
+            <td>${h.actual_mbps != null ? fmtMbps(h.actual_mbps) : '-'}</td>
+            <td class="${pass ? 'pass' : 'fail'}">${pass ? 'PASS' : 'FAIL'}</td>
+            <td style="font-size:11px;color:var(--muted)">${esc(testedBy)}</td>
+            <td>${esc((h.error_message || '').slice(0, 80))}</td>
+          </tr>
+        `;
+      }).join('');
+      return `<table><thead><tr><th>Time</th><th>Speed</th><th>Result</th><th>Tested by</th><th>Error</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    async function render() {
+      try {
+        const [detail, errData, bwData] = await Promise.all([
+          fetchJson(`/api/public/node/${encodeURIComponent(addr)}?historyLimit=100`),
+          fetchJson(`/api/public/node/${encodeURIComponent(addr)}/errors?limit=200`),
+          fetchJson(`/api/public/node/${encodeURIComponent(addr)}/bandwidth?limit=100`),
+        ]);
+
+        const node    = detail.node || {};
+        const history = detail.history || [];
+        const errors  = errData.errors || [];
+        const bwHist  = bwData.history || [];
+
+        const CONTINENT_NAMES = { EU:'Europe', AS:'Asia', NA:'N. America', SA:'S. America', AF:'Africa', OC:'Oceania', AN:'Antarctica', ZZ:'Unknown' };
+        const SDK_NAMES = { dvpnd:'DVPND' };
+        const OS_NAMES = { win32:'Windows', darwin:'macOS', linux:'Linux' };
+        const continentLabel = c => c ? (CONTINENT_NAMES[c] || c) : '—';
+        const sdkLabel = s => s ? (SDK_NAMES[s] || s) : '—';
+        const osLabel  = p => p ? (OS_NAMES[p]  || p) : '';
+
+        document.getElementById('moniker').textContent = node.moniker || '(no moniker)';
+        const metaParts = [];
+        if (node.country)      metaParts.push(`<span>${esc(node.country)}</span>`);
+        if (node.city)         metaParts.push(`<span>${esc(node.city)}</span>`);
+        if (node.continent)    metaParts.push(`<span>${continentLabel(node.continent)}</span>`);
+        if (node.service_type) metaParts.push(`<span>${esc({ wireguard: 'WireGuard', amneziawg: 'AmneziaWG', v2ray: 'V2Ray', xray: 'Xray', openvpn: 'OpenVPN', hysteria2: 'Hysteria2' }[String(node.service_type).toLowerCase()] || node.service_type)}</span>`);
+        document.getElementById('meta').innerHTML = metaParts.join(' · ');
+
+        const passCount = history.filter(h => h.pass === 1 || (h.actual_mbps != null && h.actual_mbps > 0)).length;
+        const total = history.length;
+        const passRate = total > 0 ? ((passCount / total) * 100).toFixed(1) : '0.0';
+        let streak = 0;
+        for (const h of history) {
+          const pass = h.pass === 1 || (h.actual_mbps != null && h.actual_mbps > 0);
+          if (pass) streak++; else break;
+        }
+
+        document.getElementById('content').innerHTML = `
+          <section>
+            <h2>Summary</h2>
+            <div class="summary-grid">
+              <div class="summary-cell"><div class="label">Total Tests</div><div class="value">${total}</div></div>
+              <div class="summary-cell"><div class="label">Passes</div><div class="value">${passCount}</div></div>
+              <div class="summary-cell"><div class="label">Pass Rate</div><div class="value">${passRate}%</div></div>
+              <div class="summary-cell"><div class="label">Current Streak</div><div class="value">${streak}</div></div>
+              <div class="summary-cell"><div class="label">Region</div><div class="value" style="font-size:16px">${continentLabel(node.continent)}</div></div>
+              <div class="summary-cell"><div class="label">Tested client</div><div class="value" style="font-size:16px">${sdkLabel(node.sdk)}</div></div>
+              <div class="summary-cell"><div class="label">Tester Device</div><div class="value" style="font-size:16px">${osLabel(node.tester_os) || '—'}</div></div>
+            </div>
+          </section>
+          <section>
+            <h2>Bandwidth History</h2>
+            ${buildBandwidthChart(bwHist)}
+          </section>
+          <section>
+            <h2>Uptime (last ${history.length})</h2>
+            ${buildUptimeBar(history)}
+          </section>
+          <section>
+            <h2>Error Log (grouped)</h2>
+            ${buildErrorGroups(errors)}
+          </section>
+          <section>
+            <h2>Recent Tests</h2>
+            ${buildHistoryTable(history)}
+          </section>
+        `;
+      } catch (err) {
+        document.getElementById('content').innerHTML = `<div class="error-msg">Failed to load node: ${esc(err.message)}</div>`;
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>

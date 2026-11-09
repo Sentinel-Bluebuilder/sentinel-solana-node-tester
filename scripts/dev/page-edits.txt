@@ -1,0 +1,976 @@
+# Solana edits to the Cosmos tester pages — applied by scripts/dev/patch-pages.mjs.
+#
+# The pages are the Cosmos pages (work/sentinel-node-tester) plus exactly these
+# edits; scripts/test-handlers.mjs rebuilds them from the Cosmos copy and fails on
+# any other difference. An edit changes WORDING ONLY where the Cosmos text is wrong
+# on Solana (token, chain, wallet, client, explorer) — layout and styling stay.
+#
+# Block format:
+#   === <file> :: <name> [:: <count>]     count = expected matches (default 1)
+#   --- from                              exact text, replaced as a whole
+#   --- from-start / --- from-end         or: a span from the start text through the end text
+#   --- to                                replacement (may be empty)
+# Lines starting with '#' outside a block are comments. A "# ─── " section heading
+# ends the block before it; any other '#' line inside a part is content.
+
+# ─── Explorer links ─────────────────────────────────────────────────────────────
+=== admin.html :: results table explorer link
+--- from
+<a href="https://explorer.sentinel.co/address/${encodeURIComponent(addrFull)}" target="_blank" rel="noopener noreferrer" title="Open in Sentinel Explorer"
+--- to
+<a href="https://explorer.solana.com/address/${encodeURIComponent(addrFull)}?cluster=devnet" target="_blank" rel="noopener noreferrer" title="Open in Solana Explorer"
+=== admin.html :: report tx links :: 2
+--- from
+https://p2pscan.com/transaction/${_esc(tx)}"
+--- to
+https://explorer.solana.com/tx/${_esc(tx)}?cluster=devnet"
+=== admin.html :: node detail explorer link
+--- from
+'<a href="https://explorer.sentinel.co/address/' + encodeURIComponent(a) + '" target="_blank" rel="noopener noreferrer" title="Open in Sentinel Explorer"
+--- to
+'<a href="https://explorer.solana.com/address/' + encodeURIComponent(a) + '?cluster=devnet" target="_blank" rel="noopener noreferrer" title="Open in Solana Explorer"
+=== public.html :: node drawer explorer link
+--- from
+if (dl) dl.href = 'https://explorer.sentinel.co/address/' + encodeURIComponent(node.address);
+--- to
+if (dl) dl.href = 'https://explorer.solana.com/address/' + encodeURIComponent(node.address) + '?cluster=devnet';
+=== live.html :: log row explorer link
+--- from
+const explorerUrl = 'https://explorer.sentinel.co/address/' + encodeURIComponent(addrFull);
+--- to
+const explorerUrl = 'https://explorer.solana.com/address/' + encodeURIComponent(addrFull) + '?cluster=devnet';
+=== live.html :: node modal explorer link
+--- from
+<a href="https://explorer.sentinel.co/address/${encodeURIComponent(addr)}" target="_blank" rel="noopener noreferrer" title="Open in Sentinel Explorer"
+--- to
+<a href="https://explorer.solana.com/address/${encodeURIComponent(addr)}?cluster=devnet" target="_blank" rel="noopener noreferrer" title="Open in Solana Explorer"
+
+# ─── Token: tDVPN, not P2P ("P2P" as the pay-per-node MODE name stays) ──────────
+=== admin.html :: net spend tooltip
+--- from
+title="Net spend = P2P paid this iteration. Cancelled-session deposits recovered by the chain are reflected in Balance."
+--- to
+title="Net spend = tDVPN paid this iteration. Escrow refunded by closed test channels is reflected in Balance."
+=== admin.html :: zero spend placeholders :: 2
+--- from
+state.estimatedTotalCost = '0.0000 P2P';
+--- to
+state.estimatedTotalCost = '0.0000 tDVPN';
+=== admin.html :: wallet failure root cause
+--- from
+rootCause: 'Tester wallet ran out of P2P mid-test — not a node fault.',
+--- to
+rootCause: 'Tester wallet ran out of tDVPN (or SOL for fees) mid-test — not a node fault.',
+=== live.html :: demo log insufficient funds
+--- from
+'insufficient balance to start session: need 0.52 P2P, wallet has 0.08 P2P'
+--- to
+'insufficient balance to open channel: need 0.52 tDVPN, wallet has 0.08 tDVPN'
+
+# ─── Wallet: a Solana key file, not a mnemonic ─────────────────────────────────
+=== admin.html :: logout tooltip
+--- from
+title="Clear session and switch account/mnemonic"
+--- to
+title="Clear the admin session"
+
+# ─── Client: one implementation (dvpnd) ─────────────────────────────────────────
+=== admin.html :: client toggle shows dvpnd only
+--- from
+        <span id="sdkJs" onclick="setSDK('js')" class="sdk-toggle-opt active">BLUE JS</span>
+        <span id="sdkCs" onclick="setSDK('csharp')" class="sdk-toggle-opt">BLUE C#</span>
+        <span id="sdkTkd" onclick="setSDK('tkd')" class="sdk-toggle-opt">TKD JS</span>
+--- to
+        <span id="sdkJs" onclick="setSDK('dvpnd')" class="sdk-toggle-opt active" title="Solana has one client: the reference dvpnd daemon, run in a throwaway container per session">DVPND</span>
+=== admin.html :: client toggle default
+--- from
+    let activeSDK = 'js';
+--- to
+    let activeSDK = 'dvpnd';
+=== admin.html :: client toggle highlight
+--- from
+      if (sdk === 'js' && jsEl) {
+--- to
+      if ((sdk === 'js' || sdk === 'dvpnd') && jsEl) {
+=== admin.html :: results table client label
+--- from
+tkd: { bg: 'var(--bg-input)', fg: 'var(--text)', label: 'TKD' } };
+--- to
+tkd: { bg: 'var(--bg-input)', fg: 'var(--text)', label: 'TKD' }, dvpnd: { bg: 'var(--bg-input)', fg: 'var(--text)', label: 'DVPND' } };
+=== admin.html :: run badge client name
+--- from
+    const SDK_KEY_BY_ACTIVE = { 'js': 'blue-js', 'csharp': 'blue-js', 'tkd': 'tkd-js' };
+    const SDK_BADGE_NAME = { 'js': 'Blue JS', 'csharp': 'Blue C#', 'tkd': 'TKD JS' };
+--- to
+    const SDK_KEY_BY_ACTIVE = { 'js': 'dvpnd', 'csharp': 'dvpnd', 'tkd': 'dvpnd', 'dvpnd': 'dvpnd' };
+    const SDK_BADGE_NAME = { 'js': 'DVPND', 'csharp': 'DVPND', 'tkd': 'DVPND', 'dvpnd': 'DVPND' };
+=== admin.html :: help: client toggle
+--- from
+            <div style="color:var(--accent);font-weight:600;font-size:14px;margin-bottom:4px">SDK Toggle (Blue JS / Blue C# / TKD JS)</div>
+            Switch which SDK implementation is used for node connections. <b>Blue JS</b> = our JavaScript SDK. <b>Blue C#</b> = our C# SDK via SentinelBridge.exe. <b>TKD JS</b> = @sentinel-official/sentinel-js-sdk (official, RPC-based).
+--- to
+            <div style="color:var(--accent);font-weight:600;font-size:14px;margin-bottom:4px">Client (DVPND)</div>
+            Solana has one client implementation: the reference <b>dvpnd</b> daemon. Every paid session runs it in a throwaway Docker container, never on the tester host, so there is no SDK to switch.
+
+# ─── Dashboard guide ────────────────────────────────────────────────────────────
+=== admin.html :: guide: new test
+--- from
+then scans ALL active nodes on the Sentinel blockchain. Each node gets a real session, real tunnel, and real speed test.
+--- to
+then scans ALL live nodes of Sentinel's dVPN program on Solana. Each node gets a real paid session, real tunnel, and real speed test.
+=== admin.html :: guide: stop
+--- from
+            Gracefully stops the current scan after the active node finishes. Results are saved. You can Resume later.
+--- to
+            Stops the scan right away: the session in flight is ended and that node is not recorded. Results are saved; Resume tests that node first.
+=== admin.html :: guide: plan testing
+--- from
+            <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:4px">Test via Plan <span style="color:var(--text-dim);font-size:10px">(WIP)</span></div>
+            Plan testing is under development. Currently hidden from the dashboard. Coming in a future release.
+--- to
+            <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:4px">Subscription Plan</div>
+            New Test → Subscription Plan tests only the nodes in a plan's roster, using a subscription this wallet holds. Each session uses an access ticket from the plan's provider — no channel and no payment per node.
+
+=== admin.html :: P2P tile refund note
+--- from
+Note: refund-on-disconnect (closing the locked escrow with the node after each connection) is under research — current behavior locks the per-session quote until the chain settles it.
+--- to
+Refunds: per hour, the channel is closed right after the test and only the elapsed time is paid; per GB, the escrow (at least 0.2 tDVPN) minus the used voucher comes back when the refund sweep closes the channel after its 2 h grace.
+
+# ─── DNS: this build's default is Cloudflare (core/constants.js), not HNS ───────
+=== admin.html :: DNS default label
+--- from
+        <option value="hns">HNS (default)</option>
+        <option value="google">Google</option>
+        <option value="cloudflare">Cloudflare</option>
+--- to
+        <option value="hns">HNS</option>
+        <option value="google">Google</option>
+        <option value="cloudflare">Cloudflare (default)</option>
+
+# ─── Payment settings (base units, Solana facts) ────────────────────────────────
+=== admin.html :: max price unit
+--- from
+Max price (udvpn / GB)
+--- to
+Max price (base units / GB)
+=== admin.html :: max price hint
+--- from
+Skips any node priced above this. Real cheapest mainnet node is ≈ 4,000,000 udvpn/GB.
+--- to
+Skips any node priced above this. 1 tDVPN = 1,000,000 base units.
+
+=== admin.html :: settings: gigabytes
+--- from
+(deposit size; 1–100, default <span id="p2pDefGigs">
+--- to
+(prepaid per node with a signed voucher; 1–100, default <span id="p2pDefGigs">
+=== admin.html :: settings: batch size
+--- from
+(messages per TX; 1–5, default ${_esc(d.batchSize ?? 5)})
+--- to
+(not used on Solana — every node gets its own channel; default ${_esc(d.batchSize ?? 5)})
+=== admin.html :: settings: auto-cancel title
+--- from
+Auto-cancel sessions after each batch</span>
+--- to
+Close test channels after each run</span>
+=== admin.html :: settings: auto-cancel description
+--- from-start
+After a batch finishes testing, broadcast a single TX with up to <span id="p2pBatchEcho">
+--- from-end
+If the node never reported usage, 100% of the deposit is refundable.</span>
+--- to
+When the run ends, start closing every channel it opened (<code style="color:var(--accent)">start_close_channel</code>). The refund sweep closes them after the 2 h grace and withdraws the unused escrow to this wallet. Per-hour channels are always closed right after their test.<span id="p2pBatchEcho" hidden>${_esc(s.batchSize ?? 5)}</span></span>
+
+# ─── On-chain reports: SPL Memo, read with getSignaturesForAddress ──────────────
+=== admin.html :: reporting panel subtitle
+--- from
+Sentinel chain · TX memo · prefix <code style="color:var(--accent)">SNTR1</code>
+--- to
+Solana · SPL Memo · prefix <code style="color:var(--accent)">SNTR1</code>
+=== admin.html :: reporting panel description
+--- from
+          Periodically commits compact binary node-test reports to the Sentinel chain via TX memo (self-send). Any consumer can ingest performance + concurrency data via RPC <code style="color:var(--accent)">tx_search</code>.
+--- to
+          Periodically posts compact node-test reports to Solana as an SPL Memo signed by the tester wallet. Any consumer can ingest performance + concurrency data via RPC <code style="color:var(--accent)">getSignaturesForAddress</code>.
+=== admin.html :: reporting cost hint
+--- from
+When on, the tester self-sends 1 udvpn with an encoded batch every <code style="color:var(--accent)">N</code> nodes. Each TX costs ~200,000 udvpn gas.
+--- to
+When on, the tester posts an SPL Memo with an encoded batch every <code style="color:var(--accent)">N</code> nodes. Each TX costs one Solana fee (~5,000 lamports) and no tDVPN.
+=== admin.html :: reporting batch-size hint
+--- from
+Sentinel's chain enforces a 256-character TX memo limit; 6 records = 244 base64 chars (the maximum that fits). 7 would overflow and the chain rejects the TX with code 12 "memo too large".
+--- to
+A Solana transaction must fit 1,232 bytes, so a memo is capped at 900 characters; 6 records take under 450 (the packer never exceeds the cap).
+=== admin.html :: report history timeouts :: 2
+--- from
+Request timed out — RPC tx_search did not respond
+--- to
+Request timed out — RPC getSignaturesForAddress did not respond
+=== admin.html :: report history subtitle
+--- from
+Every report TX broadcast by this tester wallet · queried via RPC <code style="color:var(--accent)">tx_search</code>
+--- to
+Every report TX signed by this tester wallet · queried via RPC <code style="color:var(--accent)">getSignaturesForAddress</code>
+=== admin.html :: report history footnote
+--- from
+Each row is one self-send TX with a <code style="color:var(--accent)">SNTR1</code>-prefixed memo carrying up to 6 node-test records. Click the txhash to open p2pscan.
+--- to
+Each row is one SPL Memo TX with an <code style="color:var(--accent)">SNTR1</code>-prefixed memo carrying up to 6 node-test records. Click the signature to open Solana Explorer.
+=== admin.html :: help: on-chain reporting
+--- from-start
+            Opt-in publisher (off by default). When enabled, every N tested nodes the tester self-sends <b>1 udvpn</b>
+--- from-end
+See <b>core/onchain-report.js</b> for encoder/decoder/<code style="font-family:var(--font-mono);font-size:11px">commitBatch</code>/<code style="font-family:var(--font-mono);font-size:11px">queryReports</code>.
+--- to
+            Opt-in publisher (off by default). When enabled, every N tested nodes the tester posts an <b>SPL Memo</b> signed by its wallet, so any consumer can ingest results via RPC <code style="font-family:var(--font-mono);font-size:11px">getSignaturesForAddress</code> — the memo text rides on the signature list, no transaction fetch and no off-chain API. A Solana transaction must fit 1,232 bytes, so a memo is capped at 900 characters; each batch carries up to <b>6 records</b> (the batch size setting) and costs one Solana fee, no tDVPN.
+            <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:0.4px;text-transform:uppercase">Wire format v3 (plain ASCII, one line per record)</div>
+            <div style="margin-top:6px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:10.5px;line-height:1.6;color:var(--text-dim);overflow-x:auto;white-space:pre">Header
+  SNTR1|v3|&lt;net&gt;|&lt;region&gt;|b=&lt;baselineMbps&gt;|t=&lt;unixSeconds&gt;
+    net        devnet | mainnet
+    region     tester's 2-letter country, '--' if unknown
+
+Record (one line each)
+  &lt;nodePda&gt;|&lt;ok&gt;|&lt;mbps&gt;|&lt;peers&gt;|&lt;latencyMs&gt;|&lt;proto&gt;|&lt;cc&gt;
+    ok         1 = session carried traffic, 0 = failed
+    mbps       through the tunnel, one decimal; empty if ok=0
+    proto      wg | awg | v2 | xr | ovpn | hy2</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:0.4px;text-transform:uppercase">Example memo</div>
+            <div style="margin-top:6px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:10.5px;line-height:1.55;color:var(--text-dim);overflow-x:auto;white-space:pre">SNTR1|v3|devnet|US|b=94.0|t=1792473600
+6AaXvhWpFDMf8FimxSb2Tb3bKcgPmbZxj4Tdtb31nP8F|1|82.4|1|184|wg|US</div>
+            <div style="margin-top:10px;font-size:11.5px;color:var(--text-dim);line-height:1.6">
+              <b>TX shape:</b> one <code style="font-family:var(--font-mono);font-size:11px">SPL Memo</code> instruction signed by the tester wallet. Query with <code style="font-family:var(--font-mono);font-size:11px">getSignaturesForAddress(&lt;wallet&gt;)</code> and keep the entries whose memo starts with <code style="font-family:var(--font-mono);font-size:11px">SNTR1|v3</code>. See <b>lib/onchain-report.js</b> for the packer, decoder, <code style="font-family:var(--font-mono);font-size:11px">commitBatch</code> and <code style="font-family:var(--font-mono);font-size:11px">queryReports</code>.
+
+# ─── Subscription plans: access tickets from the provider, no fee grant ─────────
+=== admin.html :: mode tile: subscription plan
+--- from
+Test only nodes inside a subscription plan. Sessions are subscription-allocated; the plan owner pays gas via fee grant.
+--- to
+Test only nodes inside a subscription plan. Each session uses an access ticket from the plan's provider — no channel and no payment per node.
+=== admin.html :: plan picker intro
+--- from
+          Only tests nodes in the selected plan. Session TXs are <b style="color:var(--accent-bright)">fee-granted by the plan owner</b> — but only if that plan owner has an active feegrant for this wallet. Plans without a feegrant are flagged below and disabled (this wallet would otherwise pay gas itself).
+--- to
+          Only tests nodes in the selected plan's roster. Sessions use <b style="color:var(--accent-bright)">access tickets signed by the plan's provider</b> — no transaction, channel or payment per session. Plans whose provider is not listed or whose signed metadata does not verify are flagged below and disabled.
+=== admin.html :: plan badge: own provider
+--- from
+letter-spacing:1px">SELF-PAYS GAS</span>
+--- to
+letter-spacing:1px">OWN PROVIDER</span>
+=== admin.html :: plan badge: provider verified
+--- from
+letter-spacing:1px">FEE GRANT ACTIVE</span>
+--- to
+letter-spacing:1px">PROVIDER VERIFIED</span>
+=== admin.html :: plan badge: provider not verified
+--- from
+letter-spacing:1px">NO FEE GRANT</span>
+--- to
+letter-spacing:1px">PROVIDER UNVERIFIED</span>
+=== admin.html :: plan disabled reasons
+--- from
+          const reason = !p.ownerSentAddr ? 'Plan owner unknown'
+            : p.nodeCount === 0 ? 'No active nodes in this plan'
+            : !canTest ? 'Plan owner has not granted gas to this wallet'
+--- to
+          const reason = !p.ownerSentAddr ? 'Plan provider unknown'
+            : p.nodeCount === 0 ? 'No active nodes in this plan'
+            : !canTest ? 'Provider is not listed or its signed metadata did not verify'
+=== admin.html :: plan provider fallback
+--- from
+${escHtml(p.ownerSentAddr || 'unknown granter')}
+--- to
+${escHtml(p.ownerSentAddr || 'unknown provider')}
+
+# ─── About: where the node list comes from ──────────────────────────────────────
+=== about.html :: scan source
+--- from
+The tester scans the full active node list on the Sentinel chain, then connects
+--- to
+The tester scans the full live node list of Sentinel's dVPN program on Solana, then connects
+=== about.html :: node list source
+--- from
+The node list is pulled from the Sentinel chain (v3 LCD <code>/sentinel/node/v3/nodes</code>, with RPC-first fallback across multiple public endpoints).
+--- to
+The node list is read from Sentinel's dVPN program on Solana (every live Node account, over a pool of Solana RPC endpoints); each node's signed metadata is checked against its on-chain account before it is tested.
+=== about.html :: admin-only internals
+--- from
+The admin wallet, plan IDs, fee-grant internals, and any operator-side controls
+--- to
+The admin wallet, plan IDs, provider internals, and any operator-side controls
+=== about-modal.js :: scan source
+--- from
+'The Sentinel Node Tester scans the full active node list on the Sentinel chain, connects
+--- to
+'The Sentinel Node Tester scans the full live node list of Sentinel\'s dVPN program on Solana, connects
+=== about-modal.js :: oracle target
+--- from
+node performance and concurrent-user data to the Sentinel chain. Results are committed on-chain
+--- to
+node performance and concurrent-user data to Solana. Results are committed on-chain
+=== about-modal.js :: node list source
+--- from
+'The node list is pulled from the Sentinel chain (RPC-first, with LCD fallback across multiple public endpoints).
+--- to
+'The node list is read from Sentinel\'s dVPN program on Solana (every live Node account, over a pool of Solana RPC endpoints), and each node\'s signed metadata is checked against its account.
+=== about-modal.js :: admin-only internals
+--- from
+'The admin wallet, plan IDs, fee-grant internals, and any operator-side controls
+--- to
+'The admin wallet, plan IDs, provider internals, and any operator-side controls
+
+# ─── CLI guide: this tester's CLI (cli.js), not the Cosmos sentinel-audit ───────
+=== admin.html :: client chip tooltip
+--- from
+              : 'npm latest unknown');
+--- to
+              : 'Pinned dvpnd client image (not published to npm). Click Verify to read its version from the image.');
+=== admin.html :: CLI guide subtitle
+--- from
+Drop the same audit pipeline that powers this dashboard into your own dVPN tooling — headless, scriptable, AI-discoverable.
+--- to
+Drive the same audit pipeline that powers this dashboard from a terminal, a script or an AI agent — every command is one call to this server's API.
+=== admin.html :: CLI guide chips
+--- from
+          <a href="#cli-library" style="${chipStyle}">9 · Library use</a>
+          <a href="#cli-ci" style="${chipStyle}">10 · CI / Docker</a>
+--- to
+          <a href="#cli-library" style="${chipStyle}">9 · Results on chain</a>
+          <a href="#cli-ci" style="${chipStyle}">10 · CI</a>
+=== admin.html :: CLI guide body
+--- from-start
+          <div id="cli-install" style="${sectionTitle}">1 · Install</div>
+--- from-end
+the same SQLite results store. No vendored services, no API keys, no accounts.
+          </div>
+--- to
+          <div id="cli-install" style="${sectionTitle}">1 · Install</div>
+          <div>The CLI ships with the tester. It is a thin HTTP client: start the server once, then every command talks to it.</div>
+          <div style="${blockStyle}">git clone https://github.com/Sentinel-Bluebuilder/sentinel-node-tester-solana
+cd sentinel-node-tester-solana
+npm install
+cp .env.example .env      # then fill it in (section 2)
+npm start                 # dashboard + API on PORT
+node cli.js help          # every command</div>
+          <div style="margin-top:8px;font-size:12px">Requires <span style="${codeStyle}">node &gt;= 20</span> and Docker. Paid sessions never run on the host: each one runs the <span style="${codeStyle}">dvpnd</span> client in a throwaway container from <span style="${codeStyle}">DVPND_IMAGE</span>. <span style="${codeStyle}">node cli.js doctor</span> checks Docker, the image, the wallet and RPC before a paid run.</div>
+
+          <div id="cli-env" style="${sectionTitle}">2 · Configure (.env)</div>
+          <div>The server reads <span style="${codeStyle}">.env</span> in the project root; the CLI reads <span style="${codeStyle}">PORT</span> and <span style="${codeStyle}">ADMIN_TOKEN</span> from the same file.</div>
+          <div style="${blockStyle}"># Tester wallet — a solana-keygen JSON key file (64-byte array).
+# Pays every test channel, receives the refunds, signs report memos.
+TEST_KEYFILE=/path/to/tester-wallet.json
+
+# Network and RPC pool (first = preferred; client containers use it too):
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URLS=https://api.devnet.solana.com
+
+# Client container image (dvpnd):
+DVPND_IMAGE=node-manager/dvpnd:devnet-0e6ada706a
+
+# Server + admin gate (the CLI sends ADMIN_TOKEN as a Bearer token):
+PORT=3001
+ADMIN_TOKEN=your-admin-token</div>
+          <div style="margin-top:8px;font-size:12px;color:var(--red)">Never commit <span style="${codeStyle}">.env</span> or the key file. The key file owns the wallet's funds.</div>
+
+          <div id="cli-quickstart" style="${sectionTitle}">3 · Quickstart</div>
+          <div style="${blockStyle}"># 1. Ready for a paid run? (Docker, client image, wallet, RPC)
+node cli.js doctor
+
+# 2. Every live node on chain (no tokens spent):
+node cli.js nodes
+
+# 3. Check one node: signed metadata, TLS pin, reachability (never spends):
+node cli.js probe &lt;nodePda&gt;
+
+# 4. Test every node, paying per GB (or --hours, or --test-run for no payment):
+node cli.js start
+node cli.js wait
+
+# 5. Results, then close the test channels and withdraw the refunds:
+node cli.js results
+node cli.js sweep</div>
+
+          <div id="cli-commands" style="${sectionTitle}">4 · Commands</div>
+          <div style="${subTitle}">Read (no tokens spent)</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">nodes</span> — every live-listed node on chain.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">probe &lt;nodePda&gt;</span> — signed metadata, claims vs account, TLS pin, reachability.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">info</span> / <span style="${codeStyle}">doctor</span> — network, program, mint, wallet; readiness for a paid run.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">speed</span> / <span style="${codeStyle}">speed-test</span> — the speed method in use (steady by default: 4 streams × 10 s of verified bytes from our pinned origin; <span style="${codeStyle}">SPEED_METHOD=classic</span> = one 10 MB download) and a fresh direct baseline with it.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">plans</span> / <span style="${codeStyle}">subscriptions</span> / <span style="${codeStyle}">sub-plans</span> / <span style="${codeStyle}">admin-plans</span> — plans on chain, this wallet's subscriptions, provider check + roster size, every plan's terms.</div>
+          <div>• <span style="${codeStyle}">status</span> / <span style="${codeStyle}">state</span> / <span style="${codeStyle}">results</span> / <span style="${codeStyle}">runs</span> — the current test and saved tests.</div>
+
+          <div style="${subTitle}">Action (spends tDVPN / SOL)</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">start [--hours] [--test-run] [--loop]</span> — test every node: a voucher channel per node (per GB), a stream channel closed right after the test (per hour), or no payment (test run).</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">test-plan &lt;planPda&gt;</span> — subscribe, then test the plan's roster with access tickets.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">test-sub-plan &lt;planPda&gt; &lt;subscriptionPda&gt; &lt;providerPda&gt;</span> — test a plan with a subscription the wallet already holds.</div>
+          <div style="margin-bottom:4px">• <span style="${codeStyle}">resume</span> / <span style="${codeStyle}">stop</span> / <span style="${codeStyle}">retest-fails</span> / <span style="${codeStyle}">retest-skips</span> / <span style="${codeStyle}">auto-retest</span> — run control.</div>
+          <div>• <span style="${codeStyle}">channels</span> / <span style="${codeStyle}">sweep [--dry-run]</span> — the tester's test channels; close matured ones and withdraw refunds.</div>
+
+          <div style="${subTitle}">Public data (what /live and the public pages read)</div>
+          <div><span style="${codeStyle}">pub-nodes</span>, <span style="${codeStyle}">pub-node &lt;address&gt;</span>, <span style="${codeStyle}">errors &lt;address&gt;</span>, <span style="${codeStyle}">bandwidth &lt;address&gt;</span>, <span style="${codeStyle}">stats</span>, <span style="${codeStyle}">batches</span>, <span style="${codeStyle}">onchain-reports</span>.</div>
+
+          <div style="${subTitle}">More public data</div>
+          <div><span style="${codeStyle}">error-search</span>, <span style="${codeStyle}">countries</span>, <span style="${codeStyle}">pub-runs</span>, <span style="${codeStyle}">runs-current</span>, <span style="${codeStyle}">runs-last</span>, <span style="${codeStyle}">batch &lt;id&gt;</span>, <span style="${codeStyle}">sdk-info</span>, <span style="${codeStyle}">test-status</span>, <span style="${codeStyle}">live-state</span>, <span style="${codeStyle}">logs</span>, <span style="${codeStyle}">pub-test-start</span>, <span style="${codeStyle}">pub-test-stop (need ALLOW_PUBLIC_TEST=true)</span>.</div>
+
+          <div style="${subTitle}">Saved tests and analysis</div>
+          <div><span style="${codeStyle}">run &lt;n&gt;</span>, <span style="${codeStyle}">run-save</span>, <span style="${codeStyle}">run-load &lt;n&gt;</span>, <span style="${codeStyle}">run-delete &lt;n&gt;</span>, <span style="${codeStyle}">failure-analysis</span>, <span style="${codeStyle}">cross-sdk</span>, <span style="${codeStyle}">reports</span>, <span style="${codeStyle}">clear</span>, <span style="${codeStyle}">wait</span>.</div>
+
+          <div style="${subTitle}">Settings and health</div>
+          <div><span style="${codeStyle}">config</span> (every setting, its source and effect), <span style="${codeStyle}">settings [key=value …]</span>, <span style="${codeStyle}">dns [preset]</span>, <span style="${codeStyle}">broadcast [toggle]</span>, <span style="${codeStyle}">sdk</span>, <span style="${codeStyle}">sdk-versions</span>, <span style="${codeStyle}">sdk-verify</span>, <span style="${codeStyle}">sdk-latest</span>, <span style="${codeStyle}">transport-cache</span>, <span style="${codeStyle}">node-status &lt;url&gt;</span>, <span style="${codeStyle}">health</span>, <span style="${codeStyle}">ping</span>.</div>
+          <div style="margin-top:8px"><span style="${codeStyle}">node cli.js help</span> prints every command with its arguments.</div>
+
+          <div id="cli-flags" style="${sectionTitle}">5 · Global flags</div>
+          <div style="${blockStyle}">--url &lt;url&gt;     Server to talk to (default http://127.0.0.1:$PORT)
+--json          Compact JSON on one line (default: indented)
+--help          Every command with its arguments</div>
+          <div style="margin-top:8px;font-size:12px">Settings use <span style="${codeStyle}">key=value</span> pairs: <span style="${codeStyle}">node cli.js settings maxPriceBase=0 gigabytes=1</span> (amounts in tDVPN base units; output uses Solana field names, <span style="${codeStyle}">--raw</span> shows the shared API names).</div>
+
+          <div id="cli-output" style="${sectionTitle}">6 · Output contract</div>
+          <div>Success prints the server's JSON response on stdout with exit code 0. Failure prints one JSON object on stderr with exit code 1. Pipe stdout into <span style="${codeStyle}">jq</span> safely.</div>
+          <div style="${blockStyle}"># Failure (stderr, exit 1)
+{ "ok": false, "error": "human readable", "status": 409, "body": { ... } }</div>
+
+          <div id="cli-integrate" style="${sectionTitle}">7 · Integrate into your dVPN application</div>
+          <div style="${subTitle}">Shell out from Node / Electron / Tauri</div>
+          <div style="${blockStyle}">import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const run = promisify(execFile);
+
+async function listNodes() {
+  const { stdout } = await run('node', ['cli.js', 'nodes', '--json']);
+  return JSON.parse(stdout);
+}
+
+async function probeNode(pda) {
+  const { stdout } = await run('node', ['cli.js', 'probe', pda, '--json']);
+  return JSON.parse(stdout);
+}</div>
+
+          <div id="cli-agent" style="${sectionTitle}">8 · Agent / HTTP control</div>
+          <div>Every CLI command is one HTTP call, so any language can drive the server directly. Writes need the admin token and the <span style="${codeStyle}">X-Admin-Request</span> header.</div>
+          <div style="${blockStyle}">curl -X POST http://localhost:3001/api/start \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "X-Admin-Request: 1" \\
+  -H "Content-Type: application/json" \\
+  -d '{"testRun": true}'
+
+# Live events over Server-Sent Events:
+curl -N -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  http://localhost:3001/api/events</div>
+
+          <div id="cli-library" style="${sectionTitle}">9 · Results on chain</div>
+          <div>With on-chain reporting on, results are public on Solana with no server at all: read the tester wallet's signatures and decode the <span style="${codeStyle}">SNTR1|v3</span> memos.</div>
+          <div style="${blockStyle}">node cli.js onchain-reports --address &lt;testerWallet&gt; --limit 20</div>
+
+          <div id="cli-ci" style="${sectionTitle}">10 · CI</div>
+          <div style="${blockStyle}">npm test                  # unit + page/API checks (no chain writes)
+npm run test:e2e          # all 60 CLI commands against a running server (spends devnet tDVPN)
+npm run test:e2e:finish   # after the 2 h grace: close + withdraw every test channel</div>
+
+          <div id="cli-troubleshoot" style="${sectionTitle}">11 · Troubleshoot</div>
+          <div style="margin-bottom:4px">• <b style="color:var(--text)">No <span style="${codeStyle}">TEST_KEYFILE</span></b> — read commands work; anything that pays is refused. Point it at a funded solana-keygen key file.</div>
+          <div style="margin-bottom:4px">• <b style="color:var(--text)">RPC 429 / timeouts</b> — public devnet rate-limits node listing. Put a dedicated endpoint first in <span style="${codeStyle}">SOLANA_RPC_URLS</span>.</div>
+          <div style="margin-bottom:4px">• <b style="color:var(--text)">cannot reach the server</b> — run <span style="${codeStyle}">npm start</span>, or pass <span style="${codeStyle}">--url</span>. Never <span style="${codeStyle}">taskkill /F /IM node.exe</span>; stop the exact PID.</div>
+          <div style="margin-bottom:4px">• <b style="color:var(--text)">Docker / image missing</b> — <span style="${codeStyle}">node cli.js doctor</span> names what is missing.</div>
+          <div>• <b style="color:var(--text)">Plan session refused</b> — a plan admits <span style="${codeStyle}">max_connections</span> live tickets (each lasts until the provider's ticket limit, 24 h by default, or the subscription's expiry, whichever is first); the tester records that as a skip, not a node failure.</div>
+
+          <div style="margin-top:18px;padding:12px 14px;background:var(--accent-dim);border:1px solid rgba(30,136,229,0.2);border-radius:6px;font-size:12px;line-height:1.55">
+            <b style="color:var(--accent-bright)">For dVPN builders:</b> the same pipeline that runs this dashboard runs your audit. Whether you use the CLI or the HTTP API, you get the same paid sessions in the same dvpnd client, the same checks against the chain, the same SQLite results store. No vendored services, no API keys, no accounts.
+          </div>
+
+# ─── Six Solana protocols (Cosmos pages know only WireGuard + V2Ray), Solana slots, client name, demo data ───
+=== admin.html :: protocol table + family filters
+--- from
+      if (activeFilter === 'wg') return arr.filter(r => (r.type || '').toLowerCase().includes('wire'));
+      if (activeFilter === 'v2') return arr.filter(r => (r.type || '').toLowerCase().includes('v2'));
+--- to
+      if (activeFilter === 'wg') return arr.filter(r => (solProtocol(r.type) || {}).family === 'wg');
+      if (activeFilter === 'v2') return arr.filter(r => (solProtocol(r.type) || {}).family === 'v2');
+=== admin.html :: protocol helper
+--- from
+    function applyFilter(arr) {
+--- to
+    // Solana: six transports (Cosmos had WireGuard + V2Ray). family picks the
+    // existing badge style (wg | v2); code is the short badge text.
+    const SOL_PROTOCOLS = { wireguard: { code: 'WG', name: 'WireGuard', family: 'wg' }, amneziawg: { code: 'AWG', name: 'AmneziaWG', family: 'wg' }, v2ray: { code: 'V2', name: 'V2Ray', family: 'v2' }, xray: { code: 'XR', name: 'Xray', family: 'v2' }, openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' } };
+    function solProtocol(v) {
+      if (v == null || v === '') return null;
+      if (v === 1 || v === '1') return SOL_PROTOCOLS.wireguard;
+      if (v === 2 || v === '2') return SOL_PROTOCOLS.v2ray;
+      return SOL_PROTOCOLS[String(v).toLowerCase()] || null;
+    }
+    function applyFilter(arr) {
+=== admin.html :: row protocol badge
+--- from
+      const isWg = (r.type || '').toLowerCase().includes('wire');
+      const planBadge = r.inPlan ? '<span class="badge badge-plan">PLAN</span>' : '';
+      const proto = `<span class="badge ${isWg ? 'badge-wg' : 'badge-v2'}">${isWg ? 'WG' : 'V2'}</span>${planBadge}`;
+--- to
+      const _proto = solProtocol(r.type);
+      const isWg = !!_proto && _proto.family === 'wg';
+      const planBadge = r.inPlan ? '<span class="badge badge-plan">PLAN</span>' : '';
+      const proto = `<span class="badge ${isWg ? 'badge-wg' : 'badge-v2'}">${_proto ? _proto.code : '—'}</span>${planBadge}`;
+=== admin.html :: failure copy: protocol name
+--- from
+      const svcType0 = (raw0.type != null)
+        ? (String(raw0.type).toLowerCase().includes('wire') || raw0.type === 1 ? 'WireGuard' : 'V2Ray')
+        : (er0.service_type === 1 ? 'WireGuard' : er0.service_type === 2 ? 'V2Ray' : '—');
+--- to
+      const svcType0 = (solProtocol(raw0.type ?? er0.service_type) || {}).name || '—';
+=== admin.html :: failure popup: protocol name
+--- from
+        const svcType = (raw.type != null)
+          ? (String(raw.type).toLowerCase().includes('wire') || raw.type === 1 ? 'WireGuard' : 'V2Ray')
+          : (er.service_type === 1 ? 'WireGuard' : er.service_type === 2 ? 'V2Ray' : '—');
+--- to
+        const svcType = (solProtocol(raw.type ?? er.service_type) || {}).name || '—';
+=== admin.html :: recent reports: Solana slot
+--- from
+<b>h${_esc(rep.height)}</b>
+--- to
+<b>slot ${_esc(rep.height)}</b>
+=== admin.html :: report history: Solana slot
+--- from
+letter-spacing:0.4px">h${_esc(rep.height)}</div>
+--- to
+letter-spacing:0.4px">slot ${_esc(rep.height)}</div>
+=== public.html :: protocol table
+--- from
+    function classifyTransport(st) {
+      const s = String(st).toUpperCase();
+      const isV2 = st === 2 || s === 'V2RAY' || s.includes('V2');
+      const isWg = !isV2 && (st === 1 || s === 'WIREGUARD' || s.includes('WIRE'));
+      return { isV2, isWg, known: isV2 || isWg };
+    }
+--- to
+    // Solana: six transports (Cosmos had WireGuard + V2Ray). family picks the
+    // existing badge style (wg | v2); code is the short badge text.
+    const SOL_PROTOCOLS = { wireguard: { code: 'WG', name: 'WireGuard', family: 'wg' }, amneziawg: { code: 'AWG', name: 'AmneziaWG', family: 'wg' }, v2ray: { code: 'V2', name: 'V2Ray', family: 'v2' }, xray: { code: 'XR', name: 'Xray', family: 'v2' }, openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' } };
+    function solProtocol(v) {
+      if (v == null || v === '') return null;
+      if (v === 1 || v === '1') return SOL_PROTOCOLS.wireguard;
+      if (v === 2 || v === '2') return SOL_PROTOCOLS.v2ray;
+      return SOL_PROTOCOLS[String(v).toLowerCase()] || null;
+    }
+    function classifyTransport(st) {
+      const p = solProtocol(st);
+      const isWg = !!p && p.family === 'wg';
+      const isV2 = !!p && p.family === 'v2';
+      return { isV2, isWg, known: !!p, code: p ? p.code : '', name: p ? p.name : '' };
+    }
+=== public.html :: row protocol badge
+--- from
+        const { isV2, isWg, known } = classifyTransport(n.service_type);
+        const proto  = known
+          ? `<span class="badge badge-svc">${isWg ? 'WG' : 'V2'}</span>`
+--- to
+        const { isV2, isWg, known, code } = classifyTransport(n.service_type);
+        const proto  = known
+          ? `<span class="badge badge-svc">${code}</span>`
+=== public.html :: drawer protocol name
+--- from
+${svc.known ? (svc.isWg ? 'WireGuard' : 'V2Ray') : '—'}
+--- to
+${svc.known ? svc.name : '—'}
+=== public.html :: client name
+--- from
+const m = { js: 'Blue JS', csharp: 'Blue C#', tkd: 'TKD', rust: 'Rust', swift: 'Swift', go: 'Go' };
+--- to
+const m = { dvpnd: 'DVPND' };
+=== public.html :: no snippet wording
+--- from
+Full logs coming soon — log_snippet field not yet in API response
+--- to
+No log was captured for this failure.
+=== node.html :: client name :: 2
+--- from
+SDK_NAMES = { js:'Blue JS', csharp:'Blue C#', tkd:'TKD', rust:'Rust', swift:'Swift', go:'Go' };
+--- to
+SDK_NAMES = { dvpnd:'DVPND' };
+=== node.html :: protocol name in header
+--- from
+        if (node.service_type) metaParts.push(`<span>${esc(node.service_type)}</span>`);
+--- to
+        if (node.service_type) metaParts.push(`<span>${esc({ wireguard: 'WireGuard', amneziawg: 'AmneziaWG', v2ray: 'V2Ray', xray: 'Xray', openvpn: 'OpenVPN', hysteria2: 'Hysteria2' }[String(node.service_type).toLowerCase()] || node.service_type)}</span>`);
+=== live.html :: protocol table
+--- from
+    function normalizeServiceType(v) {
+      if (v == null) return null;
+      if (v === 1 || v === '1') return 'wireguard';
+      if (v === 2 || v === '2') return 'v2ray';
+      const s = String(v).toLowerCase();
+      if (s.includes('wire')) return 'wireguard';
+      if (s.includes('v2'))   return 'v2ray';
+      return null;
+    }
+--- to
+    // Solana: six transports (Cosmos had WireGuard + V2Ray). family picks the
+    // existing badge style (wg | v2); code is the short badge text.
+    const SOL_PROTOCOLS = { wireguard: { code: 'WG', name: 'WireGuard', family: 'wg' }, amneziawg: { code: 'AWG', name: 'AmneziaWG', family: 'wg' }, v2ray: { code: 'V2', name: 'V2Ray', family: 'v2' }, xray: { code: 'XR', name: 'Xray', family: 'v2' }, openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' } };
+    function solProtocol(v) {
+      if (v == null || v === '') return null;
+      if (v === 1 || v === '1') return SOL_PROTOCOLS.wireguard;
+      if (v === 2 || v === '2') return SOL_PROTOCOLS.v2ray;
+      return SOL_PROTOCOLS[String(v).toLowerCase()] || null;
+    }
+    function normalizeServiceType(v) {
+      const p = solProtocol(v);
+      return p ? p.name.toLowerCase() : null;
+    }
+=== live.html :: family filters
+--- from
+          const isWg = (r.type || '').toLowerCase().includes('wire');
+--- to
+          const _fam = (solProtocol(r.type) || {}).family;
+          const isWg = _fam === 'wg';
+=== live.html :: v2 family filter
+--- from
+          if (activeFilter === 'v2')   return !isWg;
+--- to
+          if (activeFilter === 'v2')   return _fam === 'v2';
+=== live.html :: row protocol badge
+--- from
+      const typeStr = (r.type || '').toLowerCase();
+      const isWg = typeStr.includes('wire');
+      const isV2 = typeStr.includes('v2');
+      const hasKnownType = isWg || isV2;
+      const proto = (hasKnownType
+        ? `<span class="badge ${isWg ? 'badge-wg' : 'badge-v2'}">${isWg ? 'WG' : 'V2'}</span>`
+--- to
+      const typeStr = (r.type || '').toLowerCase();
+      const _proto = solProtocol(r.type);
+      const isWg = !!_proto && _proto.family === 'wg';
+      const isV2 = !!_proto && !isWg;
+      const hasKnownType = !!_proto;
+      const proto = (hasKnownType
+        ? `<span class="badge ${isWg ? 'badge-wg' : 'badge-v2'}">${_proto.code}</span>`
+=== live.html :: transport column name
+--- from
+      if (isWg) {
+        transportHtml = '<span style="color:var(--text);font-size:11px">WireGuard</span>';
+      } else if (isV2) {
+        transportHtml = '<span style="color:var(--text-dim);font-size:11px">V2Ray</span>';
+      }
+--- to
+      if (isWg) {
+        transportHtml = `<span style="color:var(--text);font-size:11px">${_proto.name}</span>`;
+      } else if (isV2) {
+        transportHtml = `<span style="color:var(--text-dim);font-size:11px">${_proto.name}</span>`;
+      }
+=== live.html :: log transport code
+--- from
+        ? (o.transport.toLowerCase().includes('wire') ? 'WG' : o.transport.toLowerCase().includes('v2') ? 'V2' : o.transport.toUpperCase().slice(0, 2))
+--- to
+        ? ((solProtocol(o.transport) || {}).code || o.transport.toUpperCase().slice(0, 2))
+=== live.html :: batch result protocol
+--- from
+            else if (typeof svc === 'string') {
+              const s = svc.toLowerCase();
+              if (s.includes('v2')) typeStr = 'v2ray';
+              else if (s.includes('wire')) typeStr = 'wireguard';
+            }
+--- to
+            else if (typeof svc === 'string') {
+              typeStr = normalizeServiceType(svc) || typeStr;
+            }
+=== live.html :: failure popup: protocol name
+--- from
+        const svcType = (raw.type != null)
+          ? (String(raw.type).toLowerCase().includes('wire') || raw.type === 1 ? 'WireGuard' : 'V2Ray')
+          : (er.service_type === 1 ? 'WireGuard' : er.service_type === 2 ? 'V2Ray' : '—');
+--- to
+        const svcType = (solProtocol(raw.type ?? er.service_type) || {}).name || '—';
+=== live.html :: demo log seed
+--- from
+      const LONG_ERR = 'connect ETIMEDOUT 203.0.113.7:50010 — all 3 transports failed (vless/tcp/tls:4876, vmess/grpc/none:3876, vmess/gun/none:3876); status-port fallback 6636 exhausted after 4 peers; node test timed out (2 retries)';
+      const LONG_MON = 'na-us-cal-12.suchnode.net-premium-gigabit-exit-relay-frankfurt-backup';
+      const LONG_ADDR = 'sentnode1s0axvguu24t6kq9w3e7r5y8u2i4o6p8a0sdfghjklqwertyuiop';
+      const pass = (cc, x, m, a, s) => appendLog({ cat: 'node', status: 'pass', tag: 'PASS', transport: x, cc, moniker: m, addr: a, mbps: s });
+      const fail = (cc, x, m, a, e, msg) => appendLog({ cat: 'fail', status: 'fail', tag: 'FAIL', transport: x, cc, moniker: m, addr: a, errCode: e, msg });
+      const skip = (cc, x, m, a) => appendLog({ cat: 'node', status: 'ok', tag: 'NODE', transport: x, cc, moniker: m, addr: a, errCode: 'TEST_RUN_SKIP', msg: 'skipped — test run (no payment, no measurement)' });
+      // Oldest first; newest-first renderer flips them so the lifecycle line ends on top.
+      appendLog('[174/1577] Testing sentnode1r3anj95tn6n9mu2k…');
+      pass('ch', 'WireGuard', 'zurich-init7', 'sentnode1s9aa12zxcv', 521.9);
+      fail('pl', 'V2Ray', 'warsaw-nask', 'sentnode1s9aa11ghjk', 'PRICE_UNAVAILABLE', 'node status query returned no price — /status endpoint 503 (node likely offline or mid-restart)');
+      pass('kr', 'WireGuard', 'seoul-kt-edge', 'sentnode1s9aa10asdf', 0.4);
+      skip('br', 'V2Ray', 'sao-paulo-exit', 'sentnode1s9aa09uiop');
+      pass('se', 'WireGuard', 'stockholm-31173', 'sentnode1s9aa08erty', 333.7);
+      fail('ru', 'V2Ray', 'moscow-selectel', 'sentnode1s9aa07klqw', 'TUNNEL_DEAD', 'tunnel established but 0 bytes transferred in 12s — node accepted payment then dropped traffic (peer stopped responding)');
+      pass('us', 'V2Ray', 'na-us-cal-12.suchnode.net', 'sentnode1s0axvguu24t', 24.8);
+      pass('ca', 'WireGuard', 'toronto-ovh-02', 'sentnode1s9aa06fghj', 245.1);
+      fail('in', 'V2Ray', 'mumbai-airtel-relay', 'sentnode1s9aa05a0sd', 'INSUFFICIENT_FUNDS', 'insufficient balance to open channel: need 0.52 tDVPN, wallet has 0.08 tDVPN');
+      pass('tr', 'WireGuard', LONG_MON, LONG_ADDR, 908.9);
+      pass('fr', 'V2Ray', 'paris-online-net', 'sentnode1s9aa04o6p8', 61.0);
+      fail('au', 'WireGuard', 'mayfield-west-au', 'sentnode1s672825s9z5', 'HANDSHAKE_FAIL', 'WireGuard handshake timed out after 5s — no response from peer endpoint 203.0.113.44:51820 (3 retries)');
+      pass('jp', 'WireGuard', 'tokyo-bgp-edge', 'sentnode1s9aa03e7r5', 156.4);
+      pass('sg', 'V2Ray', 'jakarta.dvpn-x.com', 'sentnode1s4kluq448x6', 3.7);
+      fail('bg', 'V2Ray', LONG_MON, LONG_ADDR, 'SESSION_CONFLICT', '409 session exists on node (indexing race) — waited 15s then 20s, still 409; paying for FRESH session; old session stale on node');
+      skip('nl', 'V2Ray', 'amsterdam-exit', 'sentnode1saklnvuvh4m');
+      pass('gb', 'WireGuard', 'worcester-uk-relay', 'sentnode1s4a65jet2hx', 0.9);
+      pass('de', 'V2Ray', 'frankfurt-hetzner-01', 'sentnode1s9aa02vh4m', 88.2);
+      fail('ro', 'V2Ray', 'timisoara.busur.cc', 'sentnode138mmzp5ekg0', 'NODE_TIMEOUT', LONG_ERR);
+      pass('us', 'WireGuard', 'los-angeles-prime', 'sentnode1s9aa01u24t', 412.6);
+--- to
+      const LONG_ERR = 'dial tcp 198.51.100.235:18613: i/o timeout — all 3 V2Ray transports failed (vless/tcp/tls, vmess/grpc, vmess/ws); node test timed out after 2 retries';
+      // Solana nodes have no moniker: the row shows the short address.
+      const LONG_ADDR = 'syK5MgA3FX3SYGd3f3pSBZ3aZbPNkAhg57nEJVHmAoA9';
+      const pass = (cc, x, m, a, s) => appendLog({ cat: 'node', status: 'pass', tag: 'PASS', transport: x, cc, moniker: m, addr: a, mbps: s });
+      const fail = (cc, x, m, a, e, msg) => appendLog({ cat: 'fail', status: 'fail', tag: 'FAIL', transport: x, cc, moniker: m, addr: a, errCode: e, msg });
+      const skip = (cc, x, m, a) => appendLog({ cat: 'node', status: 'ok', tag: 'NODE', transport: x, cc, moniker: m, addr: a, errCode: 'TEST_RUN_SKIP', msg: 'skipped — test run (no payment, no measurement)' });
+      // Oldest first; newest-first renderer flips them so the lifecycle line ends on top.
+      appendLog('[17/42] Testing juiM4A…A2vd…');
+      pass('ch', 'WireGuard', 'SUi4hs…M4Mx', 'SUi4hsoDBGNTqK3ckTxoSJCxnwArUBb76K8UU9VHM4Mx', 521.9);
+      fail('pl', 'V2Ray', 'Aa27vh…gtP8', 'Aa27vhEcyPLVb2zkSBZmLnDDRLdn6CQ3RPP4VsiZgtP8', 'UNREACHABLE', 'GET /v1/metadata timed out after 10s — node API did not answer (node offline or mid-restart)');
+      pass('kr', 'Xray', 'Kp91tf…y3iq', 'Kp91tftNexp6JjcxzYQ6w6gNLfu26HYRLihHURomy3iq', 0.4);
+      skip('br', 'OpenVPN', 'osJdH1…fh33', 'osJdH1sG1tCQxUHh3qmCJann9FTRBrxepAiBbtNgfh33');
+      pass('se', 'WireGuard', 'Uf3Z57…xWro', 'Uf3Z57X3WGoZkgEMs5MFh3X94kNyGW243XM9u22jxWro', 333.7);
+      fail('ru', 'V2Ray', 'N8BD4S…YRjF', 'N8BD4S9zexzBaUYsgDMVbJhbAf6JiddVkbgBFRzyYRjF', 'TUNNEL_NO_TRAFFIC', 'tunnel up but 0 bytes moved in 12s — node accepted the voucher, then dropped traffic');
+      pass('us', 'Hysteria2', 'hrY3gi…mtkf', 'hrY3giHAG3tTrjNSU971sfD8Kvp6srHyfrNeUStFmtkf', 24.8);
+      pass('ca', 'AmneziaWG', 'Pc6Gbg…bUhC', 'Pc6GbgUwWC7R9b8Nx8kDjBfFcsBX6aCpiycLrJpAbUhC', 245.1);
+      fail('in', 'Xray', 'Tbzdhk…ZWm4', 'Tbzdhkn1Rho7n1Yzu3zr7q9H8HCFZdotVqmbNQkDZWm4', 'INSUFFICIENT_BALANCE', 'wallet holds 0.08 tDVPN; each channel escrows at least 0.2 tDVPN');
+      pass('tr', 'WireGuard', 'syK5Mg…AoA9', LONG_ADDR, 908.9);
+      pass('fr', 'V2Ray', 'Shzy1G…NMKr', 'Shzy1GJeQKt2khD7AZN4t3iJzpHmwwaHfyGkMUjLNMKr', 61.0);
+      fail('au', 'WireGuard', 'b3YYB5…1JMP', 'b3YYB5b7p1AP3YxcvM4Cb81KQJ6RQEz8zLDuSqxo1JMP', 'SESSION_START_FAIL', 'WireGuard handshake timed out after 5s — no response from peer endpoint 203.0.113.44:51820 (3 retries)');
+      pass('jp', 'OpenVPN', 'Fh1ogY…rp8S', 'Fh1ogYb2hn9upJKNGqXRgsRjqeR4S2J4mKqoNft6rp8S', 156.4);
+      pass('sg', 'Hysteria2', 'NVN8Ka…KQGT', 'NVN8Ka17U1NFLJhCoZqfYcm4JTNR5a3pCKshuM8MKQGT', 3.7);
+      fail('bg', 'V2Ray', 'syK5Mg…AoA9', LONG_ADDR, 'METADATA_INVALID', 'signed metadata does not verify: the TLS certificate does not match the pin in the node account');
+      skip('nl', 'Xray', 'cE8K8k…fMk4', 'cE8K8kjy86srm55FnABECeaCk4Yznc1wuD93rFJsfMk4');
+      pass('gb', 'AmneziaWG', 'mqWCKh…a5je', 'mqWCKhWPDZeMXBbzrCnHwPksqvWseBoNTC81yeZaa5je', 0.9);
+      pass('de', 'V2Ray', 'itmKc6…wRTn', 'itmKc6eYaRLC9vh2RB7HJHXBeUBfyVytxjCnYV6UwRTn', 88.2);
+      fail('ro', 'V2Ray', 'jChUjn…PzZb', 'jChUjnqtLuK4y5KUGttMmt4dnVeMwQNEcYVEUHJPPzZb', 'CLIENT_TIMEOUT', LONG_ERR);
+      pass('us', 'WireGuard', '5MSunM…yXNU', '5MSunMZP65MzBbFbHkjLA93gGi9RGK3U8fJNT1PcyXNU', 412.6);
+=== admin.html :: header client chip
+--- from
+    const SDK_LABELS = { 'blue-js': 'Blue JS', 'tkd-js': 'TKD' };
+--- to
+    const SDK_LABELS = { dvpnd: 'DVPND' };
+=== public.html :: headline numbers (Cosmos left them as dashes)
+--- from
+        if (sumUpdatedEl) sumUpdatedEl.textContent = fmtRelative(d.lastRunAt) || '—';
+--- to
+        if (sumUpdatedEl) sumUpdatedEl.textContent = fmtRelative(d.lastRunAt) || '—';
+        // The headline sentence replaced the old summary bar, but nothing filled it.
+        // It describes the directory below, so count from the same list.
+        const dir = await fetch('/api/public/nodes?limit=500').then((r) => (r.ok ? r.json() : null));
+        if (dir && Array.isArray(dir.results)) {
+          const rows = dir.results;
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          set('idTotal', rows.length);
+          set('idCountries', new Set(rows.map((n) => n.country).filter(Boolean)).size);
+          set('idPassing', rows.filter((n) => n.latest_mbps != null && n.latest_mbps > 0).length);
+        }
+
+# ─── Solana has one client (dvpnd), not SDKs: visible labels ───
+=== admin.html :: client: loading label
+--- from
+>Loading SDK versions…<
+--- to
+>Loading client version…<
+=== admin.html :: client: table column
+--- from
+>SDK<
+--- to
+>Client<
+=== admin.html :: client: other column
+--- from
+>Other SDKs<
+--- to
+>Other clients<
+=== admin.html :: client: version unavailable :: 2
+--- from
+'SDK versions unavailable'
+--- to
+'Client version unavailable'
+=== admin.html :: client: switched toast
+--- from
+'SDK switched'
+--- to
+'Client switched'
+=== admin.html :: client: failure copy
+--- from
+out.push('  SDK:    '
+--- to
+out.push('  Client: '
+=== admin.html :: client: failure popup
+--- from
+'Tester SDK'
+--- to
+'Tester client'
+=== live.html :: client: failure copy
+--- from
+'SDK:    ' + (er.sdk
+--- to
+'Client: ' + (er.sdk
+=== live.html :: client: failure popup
+--- from
+'Tester SDK'
+--- to
+'Tester client'
+=== node.html :: client: summary card
+--- from
+>Tested SDK<
+--- to
+>Tested client<
+=== about-modal.js :: six protocols
+--- from
+the VPN transport the node advertises (WireGuard or V2Ray).
+--- to
+the VPN transport the node advertises (WireGuard, AmneziaWG, V2Ray, Xray, OpenVPN or Hysteria2).
+=== about.html :: six protocols
+--- from
+The VPN transport the node advertises — WireGuard or V2Ray.
+--- to
+The VPN transport the node advertises — WireGuard, AmneziaWG, V2Ray, Xray, OpenVPN or Hysteria2.
+
+# ─── Layout fixes: results table min width (column overlap), admin + about at phone width ───
+=== admin.html :: table min width + phone layout
+--- from
+    }
+
+  </style>
+--- to
+    }
+
+    /* Fixed columns total ~1,110 px: on a narrower panel the Moniker column
+       collapsed to nothing and the headers overlapped. Keep a minimum width and
+       scroll the panel sideways instead (wide screens are unchanged). */
+    .table-container { overflow-x: auto; }
+    .table-container > .results-head-wrap, .table-container > .table-wrap { min-width: 1250px; }
+
+    /* Phone width: wrap the header and controls, stack the panels. */
+    @media (max-width: 760px) {
+      header { flex-wrap: wrap; gap: 10px; padding: 12px 16px; position: static; }
+      .header-right { flex-wrap: wrap; flex-shrink: 1; row-gap: 8px; }
+      .header-divider { display: none; }
+      .brand { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+      .brand h1 { white-space: normal; font-size: 15px; }
+      .brand > div { flex-wrap: wrap !important; overflow: visible !important; row-gap: 4px; }
+      main { padding: 16px; }
+      .controls { flex-wrap: wrap; padding: 12px 16px; }
+      .controls > div { margin-left: 0 !important; flex-wrap: wrap; }
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+      .data-grid { grid-template-columns: minmax(0, 1fr); height: auto; }
+      .data-grid > * { min-width: 0; }
+      .data-grid .log-container { height: 420px; }
+    }
+
+  </style>
+=== about.html :: phone header
+--- from
+  </style>
+--- to
+    /* Phone width: the nav links wrap instead of running off the screen. */
+    @media (max-width: 520px) {
+      header { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+      .header-right { flex-wrap: wrap; gap: 6px; }
+      .nav-link { padding: 6px 10px; }
+      main { padding: 0 16px 60px; }
+    }
+  </style>
+
+# ─── Protocol filters: WG (+AmneziaWG), V2 (+Xray), OVPN, HY2 ───
+=== admin.html :: protocol families
+--- from
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' }
+--- to
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'ovpn' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'hy2' }
+=== admin.html :: protocol families comment
+--- from
+// existing badge style (wg | v2); code is the short badge text.
+--- to
+// filter group (wg = WireGuard + AmneziaWG, v2 = V2Ray + Xray, ovpn, hy2); code is the badge text.
+=== live.html :: protocol families
+--- from
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' }
+--- to
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'ovpn' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'hy2' }
+=== live.html :: protocol families comment
+--- from
+// existing badge style (wg | v2); code is the short badge text.
+--- to
+// filter group (wg = WireGuard + AmneziaWG, v2 = V2Ray + Xray, ovpn, hy2); code is the badge text.
+=== public.html :: protocol families
+--- from
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'other' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'other' }
+--- to
+openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'ovpn' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'hy2' }
+=== public.html :: protocol families comment
+--- from
+// existing badge style (wg | v2); code is the short badge text.
+--- to
+// filter group (wg = WireGuard + AmneziaWG, v2 = V2Ray + Xray, ovpn, hy2); code is the badge text.
+=== admin.html :: filter chips
+--- from
+              <span onclick="setFilter('wg')" id="filterWg" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">WG</span>
+              <span onclick="setFilter('v2')" id="filterV2" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">V2</span>
+--- to
+              <span onclick="setFilter('wg')" id="filterWg" title="WireGuard + AmneziaWG" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">WG</span>
+              <span onclick="setFilter('v2')" id="filterV2" title="V2Ray + Xray" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">V2</span>
+              <span onclick="setFilter('ovpn')" id="filterOvpn" title="OpenVPN" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">OVPN</span>
+              <span onclick="setFilter('hy2')" id="filterHy2" title="Hysteria2" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">HY2</span>
+=== admin.html :: filter highlight
+--- from
+['all','pass','fail','slow','wg','v2'].forEach(id => {
+--- to
+['all','pass','fail','slow','wg','v2','ovpn','hy2'].forEach(id => {
+=== admin.html :: filter by family
+--- from
+      if (activeFilter === 'v2') return arr.filter(r => (solProtocol(r.type) || {}).family === 'v2');
+--- to
+      if (activeFilter === 'v2') return arr.filter(r => (solProtocol(r.type) || {}).family === 'v2');
+      if (activeFilter === 'ovpn' || activeFilter === 'hy2') return arr.filter(r => (solProtocol(r.type) || {}).family === activeFilter);
+=== live.html :: filter chips
+--- from
+              <span onclick="setFilter('wg')"   id="filterWg"   style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">WG</span>
+              <span onclick="setFilter('v2')"   id="filterV2"   style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">V2</span>
+--- to
+              <span onclick="setFilter('wg')"   id="filterWg"   title="WireGuard + AmneziaWG" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">WG</span>
+              <span onclick="setFilter('v2')"   id="filterV2"   title="V2Ray + Xray" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">V2</span>
+              <span onclick="setFilter('ovpn')" id="filterOvpn" title="OpenVPN" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">OVPN</span>
+              <span onclick="setFilter('hy2')"  id="filterHy2"  title="Hysteria2" style="padding:3px 8px;color:var(--text-muted);font-weight:600;cursor:pointer">HY2</span>
+=== live.html :: filter reset
+--- from
+for (const id of ['filterAll','filterPass','filterFail','filterSlow','filterWg','filterV2']) {
+--- to
+for (const id of ['filterAll','filterPass','filterFail','filterSlow','filterWg','filterV2','filterOvpn','filterHy2']) {
+=== live.html :: filter by family
+--- from
+          if (activeFilter === 'v2')   return _fam === 'v2';
+--- to
+          if (activeFilter === 'v2')   return _fam === 'v2';
+          if (activeFilter === 'ovpn' || activeFilter === 'hy2') return _fam === activeFilter;
+=== public.html :: filter chips
+--- from
+          <button class="chip"            id="chipWg"     data-svc="wg">WireGuard</button>
+          <button class="chip"            id="chipV2"     data-svc="v2">V2Ray</button>
+--- to
+          <button class="chip"            id="chipWg"     data-svc="wg" title="WireGuard + AmneziaWG">WireGuard</button>
+          <button class="chip"            id="chipV2"     data-svc="v2" title="V2Ray + Xray">V2Ray</button>
+          <button class="chip"            id="chipOvpn"   data-svc="ovpn">OpenVPN</button>
+          <button class="chip"            id="chipHy2"    data-svc="hy2">Hysteria2</button>
+=== public.html :: filter state comment
+--- from
+let typeFilter       = '';    // '' | 'wg' | 'v2'
+--- to
+let typeFilter       = '';    // '' | 'wg' | 'v2' | 'ovpn' | 'hy2' (protocol family)
+=== public.html :: filter in the browser, by family
+--- from
+      if (typeFilter === 'wg') params.set('service', 'wireguard');
+      if (typeFilter === 'v2') params.set('service', 'v2ray');
+--- to
+      // Solana: protocol families (WireGuard + AmneziaWG, V2Ray + Xray) are filtered in
+      // filterAndSort; the server's exact service match would drop the variants.
+=== public.html :: family match
+--- from
+          const { isV2, isWg } = classifyTransport(n.service_type);
+          if (tf === 'wg' && !isWg) return false;
+          if (tf === 'v2' && !isV2) return false;
+--- to
+          if ((solProtocol(n.service_type) || {}).family !== tf) return false;
+=== public.html :: active filter label
+--- from
+const lbl = typeFilter === 'wg' ? 'WireGuard' : 'V2Ray';
+--- to
+const lbl = { wg: 'WireGuard', v2: 'V2Ray', ovpn: 'OpenVPN', hy2: 'Hysteria2' }[typeFilter] || typeFilter;

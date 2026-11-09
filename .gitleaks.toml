@@ -1,0 +1,16 @@
+# gitleaks config: the default rules plus two reviewed false positives.
+# Full-history scan 2026-11-07 (gitleaks v8.28.0, positive control: a planted key was found).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed false positives"
+paths = [
+  # CN=localhost self-signed pair for the TLS-pin unit test only (scripts/test-unit.mjs);
+  # not the speed origin's key (its cert fingerprint differs from the origin pin).
+  '''test/fixtures/tls-test-key\.pem''',
+]
+regexes = [
+  # Public sha256 of the pinned Xray release zip, flagged as a JFrog token.
+  '''XRAY_SHA256_amd64=[0-9a-f]{64}''',
+]

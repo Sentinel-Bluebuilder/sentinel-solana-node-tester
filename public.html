@@ -1,0 +1,3220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel — Public Node Directory</title>
+  <meta name="description" content="Browse the health and speed of every node on the Sentinel decentralized privacy network. Updated continuously.">
+  <link rel="stylesheet" href="/sentinel.css">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
+  <style>
+    :root {
+      /* Legacy aliases — map onto the Sentinel design tokens from sentinel.css */
+      --text-primary: var(--text);
+      --text-secondary: var(--text-dim);
+      --glass-border: var(--border);
+      --accent-green: var(--green);
+      --accent-red: var(--red);
+      --accent-orange: var(--yellow);
+      --white: var(--text);
+    }
+
+    body {
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3 { font-family: var(--font-display); }
+
+    .glass-panel {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+    }
+
+    /* ─── Scrollbars ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+    /* ─── Header / top nav ─── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 32px;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--glass-bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* ─── Brand ─── */
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+
+    .brand-logo {
+      width: 26px;
+      height: 26px;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+
+    .brand-text { display: flex; flex-direction: column; gap: 1px; }
+
+    .brand h1 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text);
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+
+    .brand-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    /* ─── Top nav links ─── */
+    .top-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      transition: color 150ms ease-out, background 150ms ease-out;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: var(--bg-card-hover);
+    }
+
+    .nav-link.active {
+      color: var(--accent);
+    }
+
+    .nav-link.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 12px;
+      right: 12px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+
+    /* ─── Header right ─── */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-ts {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .header-ts span {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .badge-public {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border: 1px solid rgba(30, 136, 229, 0.3);
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      background: var(--accent-dim);
+      text-transform: uppercase;
+    }
+
+    @keyframes pulse {
+      0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.6); }
+      70%  { transform: scale(1);    box-shadow: 0 0 0 8px rgba(0, 200, 83, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 200, 83, 0); }
+    }
+
+    /* ─── Batch picker bar ─── */
+    .batch-picker-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-input);
+      border-radius: var(--radius) var(--radius) 0 0;
+      flex-wrap: wrap;
+    }
+
+    .batch-picker-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .batch-select {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: 12px;
+      padding: 6px 10px;
+      cursor: pointer;
+      outline: none;
+      min-width: 180px;
+      transition: border-color 150ms;
+    }
+
+    .batch-select:focus { border-color: var(--accent); }
+    .batch-select option { background: var(--bg-card-solid); }
+
+    .batch-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      flex: 1;
+    }
+
+    .batch-meta .batch-live-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 5px;
+      vertical-align: middle;
+      animation: pulse 2s infinite;
+    }
+
+    /* ─── Summary Bar ─── */
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .summary-cell {
+      padding: 14px 24px;
+      background: var(--glass-bg);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .summary-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-secondary);
+      line-height: 1.2;
+    }
+
+    .summary-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.5px;
+    }
+
+    .summary-value.green { color: var(--accent-green); }
+    .summary-value.sm    { font-size: 16px; color: var(--text-secondary); }
+
+    /* ─── Main ─── */
+    main {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ─── Controls Bar ─── */
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 12px 18px;
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+      max-width: 380px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: 13px;
+      padding: 8px 12px 8px 32px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus { border-color: rgba(0,200,83,0.3); }
+    .search-input::placeholder { color: var(--text-dim); }
+
+    .filter-select {
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      color: var(--text-dim);
+      font-family: var(--font-display);
+      font-size: 12px;
+      padding: 8px 12px;
+      cursor: pointer;
+      outline: none;
+      min-width: 130px;
+      transition: border-color 0.2s;
+    }
+
+    .filter-select:focus { border-color: rgba(0,200,83,0.3); }
+    .filter-select option { background: var(--bg-card-solid); }
+
+    .sort-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      padding: 8px 14px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: var(--font-display);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .sort-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .sort-btn.active { border-color: rgba(0,200,83,0.45); color: var(--accent-green); }
+
+    .results-meta {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* ─── Data grid: table on the left, live log on the right (matches admin dev mode) ─── */
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 16px;
+      min-height: 480px;
+    }
+    @media (max-width: 900px) {
+      .data-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Table ─── */
+    .table-container { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* ─── Live Log panel ─── */
+    .log-container {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 480px;
+      max-height: 480px;
+      align-self: start;
+      position: sticky;
+      top: 12px;
+      /* Grid items default to min-width:auto (content-based), so a long
+         unbreakable log token can blow this panel past its 380px track and
+         overflow the page. Pin to 0 so the track width wins. */
+      min-width: 0;
+    }
+    .log-container .logs {
+      flex: 1 1 auto;
+      min-height: 0;
+      /* Same trap one level down: flex item min-width defaults to auto. */
+      min-width: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 10px 14px;
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--text-dim);
+      background: var(--bg-input, rgba(255,255,255,0.02));
+    }
+    .log-container .logs .log-line {
+      white-space: pre-wrap;
+      /* break-word won't split a single long unbreakable token (node address,
+         base64 memo); anywhere will, keeping every line inside the panel. */
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-width: 100%;
+      padding: 1px 0;
+      border-bottom: 1px dashed transparent;
+    }
+    .log-container .logs .log-line.log-err { color: var(--red, #f56); }
+    .log-container .logs .log-line.log-ok  { color: var(--green, #4caf7a); }
+    .log-container .logs .log-empty { color: var(--text-muted); font-style: italic; }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    .table-wrap { overflow-x: auto; padding: 0 8px 8px; }
+
+    table { width: 100%; border-collapse: separate; border-spacing: 0 3px; table-layout: fixed; }
+
+    th {
+      text-align: left;
+      padding: 6px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      position: sticky;
+      top: 0;
+      background: var(--glass-bg);
+      z-index: 10;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th:hover { color: var(--text-primary); }
+    th.sorted { color: var(--accent-green); }
+
+    td {
+      padding: 10px 12px;
+      font-size: 12px;
+      white-space: nowrap;
+      vertical-align: middle;
+      background: var(--bg-input);
+      cursor: pointer;
+    }
+
+    .td-moniker { padding: 10px 14px; }
+
+    tr td:first-child { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+    tr td:last-child  { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+    tr:hover td { background: var(--border); }
+    tr.selected td { background: rgba(0,200,83,0.06); }
+
+    /* Row height stability — prevents jitter when data arrives */
+    #nodesBody tr { height: 44px; min-height: 44px; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      letter-spacing: 0.5px;
+    }
+
+    .badge-pass { background: rgba(0,200,83,0.12);  color: var(--accent-green); border: 1px solid rgba(0,200,83,0.25); }
+    .badge-slow { background: rgba(255,167,38,0.12); color: var(--accent-orange); border: 1px solid rgba(255,167,38,0.25); }
+    .badge-fail { background: rgba(255,23,68,0.08);  color: var(--accent-red);    border: 1px solid rgba(255,23,68,0.2); }
+    .badge-svc  { background: var(--border-hover); color: var(--text-dim); font-size: 10px; font-weight: 700; }
+
+    .td-moniker {
+      font-weight: 500;
+      color: var(--text);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .td-speed {
+      font-family: var(--font-display);
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .speed-fast   { color: var(--accent-green); }
+    .speed-medium { color: var(--accent-orange); }
+    .speed-slow   { color: var(--accent-red); }
+    .speed-none   { color: var(--text-dim); }
+
+    .hs-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      vertical-align: middle;
+    }
+
+    .hs-ok   { background: var(--accent-green); }
+    .hs-fail { background: var(--accent-red); }
+    .hs-skip { background: var(--text-dim); }
+
+    /* ─── Loading / empty ─── */
+    .loading-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--glass-border);
+      border-top-color: var(--accent-green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Pagination ─── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .page-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      padding: 7px 18px;
+      color: var(--text-primary);
+      font-size: 12px;
+      font-family: var(--font-display);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-btn:hover:not(:disabled) { border-color: rgba(0,200,83,0.4); color: var(--accent-green); }
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .page-info { font-size: 12px; color: var(--text-secondary); }
+
+    /* ─── Detail Drawer ─── */
+    #detailDrawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 440px;
+      height: 100vh;
+      background: var(--bg-card-solid);
+      border-left: 1px solid var(--glass-border);
+      z-index: 8000;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(16px);
+    }
+
+    #detailDrawer.open { transform: translateX(0); }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5); /* scrim overlay — intentional semi-transparent black, no token equivalent */
+      z-index: 7900;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    #overlay.visible { opacity: 1; pointer-events: all; }
+
+    .drawer-header {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .drawer-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .drawer-subtitle { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+    .drawer-close {
+      background: none;
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .drawer-close:hover { border-color: var(--accent-red); color: var(--accent-red); }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+    }
+
+    /* address row */
+    .addr-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-bottom: 14px;
+    }
+
+    .addr-row code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--glass-border);
+      border-radius: 5px;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 3px 8px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover { border-color: var(--accent-green); color: var(--accent-green); }
+    .copy-btn.copied { border-color: rgba(0,200,83,0.4); color: var(--accent-green); }
+
+    /* detail meta grid */
+    .detail-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .meta-cell {
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      padding: 9px 10px;
+    }
+
+    .meta-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-dim);
+    }
+
+    .meta-value {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 3px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-secondary);
+      margin: 14px 0 8px;
+    }
+
+    /* chart */
+    .chart-wrap {
+      background: var(--bg-input);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrap svg { display: block; width: 100%; overflow: visible; }
+
+    /* history table */
+    .hist-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .hist-table thead th {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      padding: 4px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--glass-border);
+      font-weight: 500;
+    }
+
+    .hist-table tbody tr { border-bottom: 1px solid var(--border); }
+    .hist-table tbody td { padding: 5px 6px; }
+
+    .hpass { color: var(--accent-green); font-weight: 600; }
+    .hfail { color: var(--accent-red); font-weight: 600; }
+
+    /* ─── Theme toggle button ─── */
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 0;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .theme-toggle-btn:hover {
+      color: var(--accent-bright);
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    /* ─── Footer ─── */
+    footer {
+      padding: 20px;
+      text-align: center;
+      border-top: 1px solid var(--glass-border);
+      margin-top: 12px;
+    }
+
+    footer p { font-size: 12px; color: var(--text-dim); }
+
+    footer a {
+      color: var(--accent-green);
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+
+    footer a:hover { opacity: 1; }
+
+    /* ─── Service type chips ─── */
+    .chip-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-display);
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      border: 1px solid var(--glass-border);
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      transition: all 0.18s;
+      min-height: 32px;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .chip:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+    .chip.active-all   { border-color: rgba(68,138,255,0.5); background: rgba(68,138,255,0.1); color: var(--accent); }
+    .chip.active-wg    { border-color: rgba(0,200,83,0.5);  background: rgba(0,200,83,0.08); color: var(--accent-green); }
+    .chip.active-v2    { border-color: rgba(255,167,38,0.5); background: rgba(255,167,38,0.08); color: var(--accent-orange); }
+
+    /* ─── Active filter chips row ─── */
+    .active-filters {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px 18px 10px;
+      border-top: 1px solid var(--glass-border);
+    }
+
+    .active-filters.has-filters { display: flex; }
+
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px 3px 12px;
+      border-radius: 14px;
+      background: var(--border-hover);
+      border: 1px solid var(--border-strong);
+      font-size: 11px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .filter-chip:hover { background: rgba(255,23,68,0.12); border-color: rgba(255,23,68,0.3); }
+
+    .filter-chip-x {
+      color: var(--text-dim);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .clear-all-btn {
+      font-size: 10px;
+      color: var(--accent-red);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-family: var(--font-display);
+      letter-spacing: 0.5px;
+      margin-left: auto;
+    }
+
+    .clear-all-btn:hover { opacity: 0.8; }
+
+    /* ─── Pass bar ─── */
+    .pass-bar {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      height: 6px;
+      width: 80px;
+    }
+
+    .pass-tick {
+      flex: 1;
+      height: 100%;
+      border-radius: 1px;
+    }
+
+    .pass-tick.p1 { background: var(--accent-green); border-radius: 2px; }
+    .pass-tick.p0 { background: var(--accent-red); border-radius: 0; opacity: 0.85; }
+    .pass-tick.pn { background: var(--border-strong); }
+
+    /* ─── Pass ratio text ─── */
+    .pass-ratio {
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ─── Window selector ─── */
+    .window-selector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .win-btn {
+      background: none;
+      border: 1px solid var(--glass-border);
+      border-radius: 5px;
+      padding: 3px 8px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font-display);
+      transition: all 0.18s;
+    }
+
+    .win-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .win-btn.active { border-color: rgba(0,200,83,0.4); color: var(--accent-green); background: rgba(0,200,83,0.06); }
+
+    /* ─── History filter toggle ─── */
+    .hist-filter {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .hist-filter-btn {
+      background: none;
+      border: 1px solid var(--glass-border);
+      border-radius: 5px;
+      padding: 4px 12px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font-display);
+      transition: all 0.18s;
+      min-height: 28px;
+    }
+
+    .hist-filter-btn.active { border-color: rgba(0,200,83,0.4); color: var(--accent-green); }
+    .hist-filter-btn:hover  { border-color: var(--border-hover); color: var(--text-primary); }
+
+    /* ─── Error log section ─── */
+    .error-section {
+      margin-bottom: 14px;
+    }
+
+    .error-item {
+      background: rgba(255,23,68,0.04);
+      border: 1px solid rgba(255,23,68,0.12);
+      border-radius: 7px;
+      margin-bottom: 6px;
+      overflow: hidden;
+    }
+
+    .error-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .error-item-header:hover { background: rgba(255,23,68,0.06); }
+
+    .error-stage-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      background: rgba(255,23,68,0.15);
+      color: var(--accent-red);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .error-code-txt {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--red);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .error-msg-txt {
+      font-size: 11px;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .error-ts-txt {
+      font-size: 10px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    .error-toggle-arrow {
+      font-size: 10px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+
+    .error-item.expanded .error-toggle-arrow { transform: rotate(180deg); }
+
+    .error-item-body {
+      display: none;
+      padding: 10px 12px 12px;
+      border-top: 1px solid rgba(255,23,68,0.1);
+    }
+
+    .error-item.expanded .error-item-body { display: block; }
+
+    .error-detail-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+
+    .error-detail-label {
+      color: var(--text-dim);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      min-width: 60px;
+      flex-shrink: 0;
+    }
+
+    .error-detail-val {
+      color: var(--text-secondary);
+      word-break: break-word;
+    }
+
+    .error-snippet {
+      background: var(--bg-input);
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: 6px;
+    }
+
+    .error-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: none;
+      border: 1px solid var(--glass-border);
+      border-radius: 5px;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 10px;
+      line-height: 1;
+      padding: 4px 9px;
+      font-family: var(--font-display);
+      transition: all 0.18s;
+    }
+
+    .error-copy-btn:hover { border-color: var(--green); color: var(--green); }
+
+    .row-copy-btn {
+      background: var(--bg-input, rgba(255,255,255,0.04));
+      color: var(--text-dim);
+      border: 1px solid var(--border, rgba(255,255,255,0.1));
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.12s ease;
+    }
+    .row-copy-btn:hover { border-color: var(--text); color: var(--text); }
+    .row-copy-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    /* ─── Copy/download button row ─── */
+    .error-action-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    /* ─── Copy toast ─── */
+    #copyToast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-card-solid);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 16px var(--shadow);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.18s, transform 0.18s;
+      pointer-events: none;
+    }
+    #copyToast.visible { opacity: 1; transform: translateY(0); }
+    #copyToast.ok  { border-color: var(--green); color: var(--green); }
+    #copyToast.err { border-color: var(--red);   color: var(--red); }
+
+    /* ─── Pass bar in detail drawer ─── */
+    .drawer-pass-bar-wrap {
+      margin: 10px 0 14px;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .drawer-pass-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .drawer-pass-headline {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .drawer-pass-bar {
+      display: flex;
+      gap: 2px;
+      height: 10px;
+      cursor: pointer;
+    }
+
+    .drawer-pass-bar .pass-tick { height: 100%; }
+
+    /* ─── Responsive ─── */
+
+    /* Tablet: 769–1024 */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      main { padding: 14px; }
+      .summary-bar { grid-template-columns: repeat(2, 1fr); }
+      .controls-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .search-wrap { max-width: 100%; grid-column: 1 / -1; }
+      .results-meta { grid-column: 1 / -1; margin-left: 0; }
+    }
+
+    /* Mobile: ≤768px */
+    @media (max-width: 768px) {
+      header {
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .summary-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      main { padding: 10px; gap: 10px; }
+
+      .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 14px;
+      }
+
+      .search-wrap {
+        max-width: 100%;
+      }
+
+      .filter-select { width: 100%; min-width: unset; }
+
+      .chip-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+
+      .results-meta { margin-left: 0; }
+
+      /* Table → card list on mobile */
+      .table-wrap table,
+      .table-wrap thead,
+      .table-wrap tbody,
+      .table-wrap tr,
+      .table-wrap th,
+      .table-wrap td {
+        display: block;
+        width: 100%;
+      }
+
+      .table-wrap thead { display: none; }
+
+      .table-wrap tr {
+        background: var(--bg-input);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        margin-bottom: 6px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .table-wrap tr:hover { background: var(--border); }
+      .table-wrap tr.selected { background: rgba(0,200,83,0.06); border-color: rgba(0,200,83,0.2); }
+
+      .table-wrap td {
+        padding: 0;
+        background: none;
+        white-space: normal;
+        font-size: 13px;
+      }
+
+      /* hide number column on mobile cards */
+      .table-wrap td:nth-child(1) { display: none; }
+
+      /* Protocol + moniker row */
+      .table-wrap td:nth-child(2) { display: inline; }
+      .table-wrap td:nth-child(3) {
+        display: inline;
+        font-size: 13px;
+        color: var(--text);
+        font-weight: 500;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+      }
+
+      /* pass bar full width */
+      .pass-bar { width: 100%; }
+
+      /* Detail drawer full-screen on mobile */
+      #detailDrawer {
+        width: 100vw;
+        height: 100dvh;
+        top: 0;
+        right: 0;
+        border-left: none;
+        border-top: 1px solid var(--glass-border);
+      }
+
+      .drawer-body { padding: 12px 14px; }
+
+      /* bigger pass ticks on mobile */
+      .drawer-pass-bar { height: 14px; }
+
+      /* tap targets */
+      .chip { min-height: 44px; padding: 10px 18px; }
+      .page-btn { min-height: 44px; }
+      .win-btn { min-height: 36px; }
+      .hist-filter-btn { min-height: 36px; }
+      .drawer-close { width: 44px; height: 44px; }
+      .copy-btn { min-height: 32px; padding: 6px 12px; }
+    }
+
+    /* Very small: ≤480px */
+    @media (max-width: 480px) {
+      body { font-size: 14px; }
+      .summary-value { font-size: 22px; }
+      .summary-cell { padding: 10px 14px; }
+      .detail-meta { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Toast / drawer coexistence ─── */
+    body.drawerOpen #copyToast { right: 460px; }
+
+    /* ─── Reduced motion ─── */
+    @media (prefers-reduced-motion: reduce) {
+      .brand-dot, .spinner, .run-dot { animation: none !important; }
+    }
+
+    /* ─── Mobile gate ────────────────────────────────────────────────────── */
+    .mobile-gate { display: none; }
+    .mobile-gate-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+    }
+    .mobile-gate-title {
+      font-family: var(--font-serif);
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin: 4px 0 0;
+      line-height: 1.2;
+      color: var(--text);
+    }
+    .mobile-gate-body {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text-dim);
+      margin: 0;
+      max-width: 260px;
+      overflow-wrap: break-word;
+      hyphens: auto;
+    }
+    .mobile-gate-url {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      max-width: 100%;
+      word-break: break-all;
+      color: var(--text-muted);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      letter-spacing: 0.2px;
+    }
+    .mobile-gate-link {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-decoration: none;
+      border-bottom: 1px solid var(--border-hover);
+      padding-bottom: 2px;
+      transition: color 0.15s ease;
+    }
+    .mobile-gate-link:hover { color: var(--text); }
+    @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+      .mobile-gate {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px;
+        background: var(--bg);
+        color: var(--text);
+        overflow-y: auto;
+        box-sizing: border-box;
+      }
+      html, body { overflow: hidden !important; }
+      body > :not(.mobile-gate) { visibility: hidden; }
+    }
+    @media (max-height: 500px) and (max-width: 1024px) {
+      .mobile-gate { padding: 16px 20px; align-items: flex-start; }
+      .mobile-gate-inner { gap: 12px; max-width: 340px; }
+      .mobile-gate-title { font-size: 22px; }
+      .mobile-gate-body { font-size: 13px; max-width: 320px; }
+    }
+  </style>
+</head>
+
+<body class="boot-pending">
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.classList.remove('boot-pending');
+    const u = document.getElementById('mobileGateUrl');
+    if (u) u.textContent = location.host || 'sentinel-p2p.com';
+  });
+</script>
+
+  <!-- MOBILE GATE — CSS-only, activates on narrow/coarse viewports -->
+  <div class="mobile-gate" id="mobileGate" aria-hidden="true">
+    <div class="mobile-gate-inner">
+      <h1 class="mobile-gate-title">View on Desktop</h1>
+      <p class="mobile-gate-body">
+        Sentinel Node Tester is desktop-only for now. Open this link on a
+        computer to view live node activity.
+      </p>
+      <div class="mobile-gate-url" id="mobileGateUrl">sentinel-p2p.com</div>
+      <a class="mobile-gate-link" href="https://sentinel.co">Back to sentinel.co</a>
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div id="overlay"></div>
+
+  <!-- Detail Drawer -->
+  <div id="detailDrawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="drawer-header">
+      <div>
+        <div class="drawer-title" id="dTitle">—</div>
+        <div class="drawer-subtitle" id="dSubtitle">—</div>
+      </div>
+      <button class="drawer-close" id="drawerClose" title="Close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="addr-row">
+        <a id="dAddrLink" href="#" target="_blank" rel="noopener noreferrer" title="Open in Sentinel Explorer" style="color:var(--accent);text-decoration:none;"><code id="dAddr">—</code></a>
+        <button class="copy-btn" id="copyAddrBtn">Copy</button>
+        <a id="dFullPageLink" href="#" style="margin-left:8px;color:var(--accent);font-size:12px;text-decoration:none;">Full page ↗</a>
+      </div>
+      <div class="detail-meta" id="dMeta"></div>
+
+      <!-- Pass history bar -->
+      <div class="drawer-pass-bar-wrap" id="dPassBarWrap" style="display:none">
+        <div class="drawer-pass-bar-header">
+          <span class="drawer-pass-headline" id="dPassHeadline">— passes</span>
+          <span style="font-size:10px;color:var(--text-dim)">newest →</span>
+        </div>
+        <div class="drawer-pass-bar" id="dPassBar" title="Click ticks to filter history"></div>
+      </div>
+
+      <!-- Errors section (shown only when errors exist) -->
+      <div id="dErrorsSection" style="display:none">
+        <div class="section-title" style="color:var(--accent-red);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span>Errors</span>
+          <div class="error-action-row">
+            <button class="error-copy-btn" id="copyFailureLogsBtn" title="Copy failure logs as text">⎘ Copy Logs</button>
+            <button class="error-copy-btn" id="downloadFailureLogsBtn" title="Download failure log as .txt">⬇ Download Log</button>
+          </div>
+        </div>
+        <div id="dErrorsList" class="error-section"></div>
+      </div>
+
+      <div class="section-title">Speed over time — Last 30 checks</div>
+      <div class="chart-wrap">
+        <svg id="dChart" viewBox="0 0 380 80" preserveAspectRatio="none" height="80"></svg>
+      </div>
+
+      <div class="hist-filter" id="dHistFilter">
+        <span style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.8px">Show:</span>
+        <button class="hist-filter-btn active" data-hf="all">All tests</button>
+        <button class="hist-filter-btn" data-hf="fails">Failures only</button>
+      </div>
+
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Result</th><th>Speed</th><th>Stage</th><th>Error</th><th>When</th>
+          </tr>
+        </thead>
+        <tbody id="dHistBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Floating top-right controls (no header bar) -->
+  <div class="top-right-controls" style="position:fixed;top:12px;right:16px;z-index:500;display:flex;align-items:center;gap:8px;">
+    <button type="button" onclick="openAboutModal()" class="top-icon-btn" title="About" aria-label="About" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);cursor:pointer;padding:0;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+    </button>
+    <button id="btnTheme" class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark theme" aria-label="Toggle theme" style="width:36px;height:36px;border-radius:8px;">
+      <svg id="themeIconDark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      <svg id="themeIconLight" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+    </button>
+    <span id="headerTsWrap" class="header-ts" style="display:none;font-size:11px;color:var(--text-dim);">Last check: <span id="lastRunTs">—</span></span>
+  </div>
+
+  <!-- Identity block (One Big Idea) -->
+  <div class="identity" id="identityBlock" style="max-width:720px;margin:16px auto 0;padding:0 24px;text-align:center;">
+    <div style="font-size:15px;font-weight:500;color:var(--text);line-height:1.55;">The Sentinel network has <b id="idTotal">—</b> active privacy nodes across <b id="idCountries">—</b> countries. <b id="idPassing">—</b> passed their last connection test.</div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:8px;">Search any node below to see its live health, speed history, and recent connection errors.</div>
+  </div>
+
+  <!-- Explainer (ID-08) -->
+  <div class="explainer" style="max-width:640px;margin:12px auto 0;padding:0 24px;text-align:center;font-size:12px;font-style:italic;color:var(--text-dim);line-height:1.5;">Every node on the Sentinel decentralized VPN network — tested automatically for speed and reliability.</div>
+
+  <main>
+
+    <!-- Controls -->
+    <div class="glass-panel" id="controlsPanel">
+      <div class="controls-bar">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="Search moniker, address, country, city…" autocomplete="off" spellcheck="false">
+        </div>
+        <select id="countryFilter" class="filter-select">
+          <option value="">All Countries</option>
+        </select>
+        <div class="chip-row">
+          <button class="chip active-all" id="chipAll"    data-svc="">All</button>
+          <button class="chip"            id="chipWg"     data-svc="wg" title="WireGuard + AmneziaWG">WireGuard</button>
+          <button class="chip"            id="chipV2"     data-svc="v2" title="V2Ray + Xray">V2Ray</button>
+          <button class="chip"            id="chipOvpn"   data-svc="ovpn">OpenVPN</button>
+          <button class="chip"            id="chipHy2"    data-svc="hy2">Hysteria2</button>
+        </div>
+        <select id="sortSelect" class="filter-select" aria-label="Sort nodes by" style="min-width:170px">
+          <option value="mbps_desc">Latest Mbps ↓</option>
+          <option value="mbps_asc">Latest Mbps ↑</option>
+          <option value="pass_desc">Pass rate ↓</option>
+          <option value="tested_desc">Last tested ↓</option>
+          <option value="moniker_asc">Moniker A→Z</option>
+        </select>
+        <!-- Window selector for pass history -->
+        <div class="window-selector">
+          <span>Window:</span>
+          <button class="win-btn" data-win="10">10</button>
+          <button class="win-btn active" data-win="25">25</button>
+          <button class="win-btn" data-win="50">50</button>
+          <button class="win-btn" data-win="100">100</button>
+        </div>
+        <div class="results-meta" id="resultsMeta">— nodes</div>
+      </div>
+      <!-- Active filters row (shown only when filters are set) -->
+      <div class="active-filters" id="activeFilters">
+        <span style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px">Filters:</span>
+        <div id="filterChipsContainer" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        <button class="clear-all-btn" id="clearAllBtn">Clear all</button>
+      </div>
+    </div>
+
+    <!-- Data grid: table left, live log right (mirrors admin dev mode) -->
+    <div class="data-grid">
+
+    <!-- Table -->
+    <div class="glass-panel table-container">
+      <!-- Batch picker bar -->
+      <div class="batch-picker-bar" id="batchPickerBar">
+        <span class="batch-picker-label">Viewing:</span>
+        <select class="batch-select" id="batchSelect" aria-label="Select batch">
+          <option value="current">&#9679; Current Batch</option>
+        </select>
+        <span class="batch-meta" id="batchMeta"></span>
+      </div>
+      <div class="panel-header">
+        <div class="panel-title">dVPN Node Connections</div>
+        <div style="font-size:11px;color:var(--text-secondary)" id="lastUpdatedLabel"></div>
+      </div>
+      <div class="table-wrap">
+        <table id="nodesTable">
+          <thead>
+            <tr>
+              <th style="width:40px">#</th>
+              <th style="width:50px">Protocol</th>
+              <th style="width:180px">Moniker / Address</th>
+              <th style="width:160px">Country</th>
+              <th style="width:100px;text-align:right">Latest Speed</th>
+              <th style="width:80px;text-align:center">Connection test</th>
+              <th style="width:90px">Last Tested</th>
+              <th style="width:110px">Recent uptime</th>
+              <th style="width:70px">Speed over time</th>
+              <th style="width:40px;text-align:center">Log</th>
+              <th style="width:24px" aria-hidden="true"></th>
+            </tr>
+          </thead>
+          <tbody id="nodesBody">
+            <tr>
+              <td colspan="11">
+                <div class="loading-state"><span class="spinner"></span>Loading nodes…</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+      <!-- Live Log (mirrors admin orientation) -->
+      <div class="glass-panel log-container">
+        <div class="panel-header">
+          <div class="panel-title">Live Log</div>
+          <div style="font-size:11px;color:var(--text-secondary)" id="publicLogStatus">idle</div>
+        </div>
+        <div class="logs" id="publicLogBody">
+          <div class="log-empty">Waiting for activity…</div>
+        </div>
+      </div>
+
+    </div>
+    <!-- /data-grid -->
+
+    <!-- Pagination -->
+    <div class="pagination" id="paginationWrap" style="display:none;">
+      <button class="page-btn" id="prevBtn">← Prev</button>
+      <span class="page-info" id="pageInfo"></span>
+      <button class="page-btn" id="nextBtn">Next →</button>
+    </div>
+
+  </main>
+
+  <script>
+    'use strict';
+
+    // ─── Constants ───
+    const PAGE_SIZE   = 50;
+    const DEBOUNCE_MS = 250;
+    const REFRESH_MS  = 30000;
+
+    // ─── State ───
+    let allNodes         = [];
+    let filteredNodes    = [];
+    let currentOffset    = 0;
+    let sortKey          = 'mbps_desc';
+    let searchQuery      = '';
+    let countryFilter    = '';
+    let typeFilter       = '';    // '' | 'wg' | 'v2' | 'ovpn' | 'hy2' (protocol family)
+    let selectedAddr     = null;
+    let searchTimer      = null;
+    let statsTimer       = null;
+    let passWindow       = parseInt(localStorage.getItem('sentPassWindow') || '25', 10);
+    let histFilterMode   = 'all'; // 'all' | 'fails'
+    let _drawerHistory   = [];
+    let _drawerErrors    = [];
+    let tabMode          = 'all';   // 'current' | 'last' | 'all'
+    let currentRunId     = null;
+    let lastRunId        = null;
+
+    // ─── Sort field compat (derived from sortKey) ───
+    function sortField() { return sortKey.startsWith('mbps') ? 'mbps' : sortKey.startsWith('pass') ? 'pass' : sortKey.startsWith('moniker') ? 'moniker' : 'tested'; }
+    function sortDir()   { return sortKey.endsWith('_asc') ? 'asc' : 'desc'; }
+
+    // ─── Country map ───
+    const _CC = {
+      'United States':'US','Germany':'DE','France':'FR','United Kingdom':'GB','Canada':'CA',
+      'The Netherlands':'NL','Netherlands':'NL','Singapore':'SG','Japan':'JP','Australia':'AU',
+      'Spain':'ES','Italy':'IT','Romania':'RO','Poland':'PL','Switzerland':'CH','Austria':'AT',
+      'Sweden':'SE','Finland':'FI','Norway':'NO','Denmark':'DK','Ireland':'IE','Belgium':'BE',
+      'Portugal':'PT','Greece':'GR','Czech Republic':'CZ','Hungary':'HU','Bulgaria':'BG',
+      'Lithuania':'LT','Latvia':'LV','Estonia':'EE','Slovakia':'SK','Croatia':'HR','Slovenia':'SI',
+      'Ukraine':'UA','Turkey':'TR','Russia':'RU','India':'IN','Brazil':'BR','Mexico':'MX',
+      'Argentina':'AR','Chile':'CL','Colombia':'CO','South Korea':'KR','Taiwan':'TW',
+      'Hong Kong':'HK','Thailand':'TH','Vietnam':'VN','Indonesia':'ID','Philippines':'PH',
+      'Malaysia':'MY','South Africa':'ZA','Egypt':'EG','Nigeria':'NG','Kenya':'KE',
+      'Israel':'IL','United Arab Emirates':'AE','Saudi Arabia':'SA','Puerto Rico':'PR',
+      'New Zealand':'NZ','Iceland':'IS','Luxembourg':'LU','Malta':'MT','Cyprus':'CY',
+      'Serbia':'RS','Moldova':'MD','Georgia':'GE','Albania':'AL','North Macedonia':'MK',
+      'Bosnia and Herzegovina':'BA','Montenegro':'ME','Kosovo':'XK',
+      'Kyrgyzstan':'KG','Uzbekistan':'UZ','Tajikistan':'TJ',
+      'Bangladesh':'BD','Pakistan':'PK','Morocco':'MA','Peru':'PE','Venezuela':'VE',
+      'Guatemala':'GT','China':'CN','Kazakhstan':'KZ','Mongolia':'MN','Jamaica':'JM',
+      'Bolivia':'BO','Ecuador':'EC','Uruguay':'UY','Bahrain':'BH','DR Congo':'CD',
+      'Costa Rica':'CR','Panama':'PA','Paraguay':'PY','Dominican Republic':'DO',
+      'El Salvador':'SV','Honduras':'HN','Nicaragua':'NI','Cuba':'CU','Haiti':'HT',
+      'Trinidad and Tobago':'TT','Türkiye':'TR','Turkiye':'TR','Czechia':'CZ',
+      'Russian Federation':'RU','Viet Nam':'VN','Korea':'KR','Republic of Korea':'KR',
+    };
+
+    function countryCode(name) {
+      if (!name) return '';
+      return _CC[name] || _CC[name.trim()] || '';
+    }
+
+    function flag(name) {
+      const cc = countryCode(name);
+      if (cc.length !== 2) return '';
+      const c = cc.toLowerCase();
+      const up = cc.toUpperCase();
+      return `<img class="flag-img" src="https://flagcdn.com/${c}.svg" alt="${up}" loading="lazy" onerror="this.style.display='none'">`;
+    }
+    // <option> elements render text only — use the 2-letter code instead of an img.
+    function flagText(name) {
+      const cc = countryCode(name);
+      return cc ? cc.toUpperCase() : '';
+    }
+
+    // ─── Formatters ───
+    function fmtMbps(v) {
+      if (v == null || v === 0) return '—';
+      return v.toFixed(2) + ' Mbps';
+    }
+
+    function speedClass(v) {
+      if (v == null || v === 0) return 'speed-none';
+      if (v >= 20) return 'speed-fast';
+      if (v >= 5)  return 'speed-medium';
+      return 'speed-slow';
+    }
+
+    // Single source of truth for transport classification. An unresolved
+    // transport (null/undefined) is { isV2:false, isWg:false, known:false } and
+    // MUST render a neutral placeholder — never default-label as WireGuard.
+    // Used by the table renderer, the type filter, and the detail drawer.
+    // Solana: six transports (Cosmos had WireGuard + V2Ray). family picks the
+    // filter group (wg = WireGuard + AmneziaWG, v2 = V2Ray + Xray, ovpn, hy2); code is the badge text.
+    const SOL_PROTOCOLS = { wireguard: { code: 'WG', name: 'WireGuard', family: 'wg' }, amneziawg: { code: 'AWG', name: 'AmneziaWG', family: 'wg' }, v2ray: { code: 'V2', name: 'V2Ray', family: 'v2' }, xray: { code: 'XR', name: 'Xray', family: 'v2' }, openvpn: { code: 'OVPN', name: 'OpenVPN', family: 'ovpn' }, hysteria2: { code: 'HY2', name: 'Hysteria2', family: 'hy2' } };
+    function solProtocol(v) {
+      if (v == null || v === '') return null;
+      if (v === 1 || v === '1') return SOL_PROTOCOLS.wireguard;
+      if (v === 2 || v === '2') return SOL_PROTOCOLS.v2ray;
+      return SOL_PROTOCOLS[String(v).toLowerCase()] || null;
+    }
+    function classifyTransport(st) {
+      const p = solProtocol(st);
+      const isWg = !!p && p.family === 'wg';
+      const isV2 = !!p && p.family === 'v2';
+      return { isV2, isWg, known: !!p, code: p ? p.code : '', name: p ? p.name : '' };
+    }
+
+    function fmtRelative(ts) {
+      if (!ts) return '—';
+      const d = Date.now() - new Date(ts).getTime();
+      if (d < 60000)    return Math.floor(d / 1000) + 's ago';
+      if (d < 3600000)  return Math.floor(d / 60000) + 'm ago';
+      if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+      return Math.floor(d / 86400000) + 'd ago';
+    }
+
+    function fmtUtc(ts) {
+      if (!ts) return '';
+      const n = Number(ts);
+      const ms = Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : new Date(ts).getTime();
+      if (!Number.isFinite(ms)) return '';
+      const d = new Date(ms);
+      const yyyy = d.getUTCFullYear();
+      const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd   = String(d.getUTCDate()).padStart(2, '0');
+      const hh   = String(d.getUTCHours()).padStart(2, '0');
+      const mi   = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+    }
+
+    function escHtml(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Map raw error codes (DB strings) to human-readable labels for the
+    // public failure popup. The raw code stays alongside the label so the
+    // operator/curious viewer can still grep logs by canonical code.
+    const ERR_LABELS = {
+      TEST_RUN_SKIP:           'Skipped (test run)',
+      UNKNOWN:                 'Unknown failure',
+      OTHER:                   'Unclassified',
+      TIMEOUT:                 'Connection timed out',
+      NODE_TIMEOUT:            'Node response timed out',
+      HANDSHAKE_TIMEOUT:       'WireGuard handshake timed out',
+      HANDSHAKE_FAILED:        'WireGuard handshake failed',
+      DNS_FAIL:                'DNS resolution failed',
+      TCP_REFUSED:             'TCP connection refused',
+      TCP_RESET:               'TCP connection reset',
+      TCP_PORT_DEAD:           'V2Ray proxy port not responding',
+      HOST_UNREACH:            'Host unreachable',
+      NET_UNREACH:             'Network unreachable',
+      TLS_FAIL:                'TLS / certificate error',
+      EMPTY_RESPONSE:          'Empty response from node',
+      HTTP_ERROR:              'HTTP error from node',
+      '409_SESSION_EXISTS':    'Active session already exists (409)',
+      CODE_105_INACTIVE:       'Subscription inactive (code 105)',
+      INVALID_PRICE:           'Node advertised invalid price',
+      ADDRESS_MISMATCH:        'Node config address mismatch',
+      NODE_RPC_BROKEN:         'Node RPC endpoint broken',
+      DUPLICATE_PAYMENT:       'Duplicate payment detected',
+      SOCKS5_NO_CONNECTIVITY:  'Tunnel up but no internet routing',
+      NODE_DB_CORRUPT:         'Node-side database corrupted',
+      INSUFFICIENT_FUNDS:      'Insufficient wallet funds',
+    };
+    function errLabel(code) {
+      if (!code) return '—';
+      const c = String(code).trim().toUpperCase();
+      return ERR_LABELS[c] || c.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase());
+    }
+
+    // ─── Build pass bar HTML ───
+    function buildPassBarHtml(barArr, cssClass) {
+      if (!barArr || barArr.length === 0) return '<span class="pass-ratio">—</span>';
+      const cls = cssClass || 'pass-bar';
+      const ticks = barArr.map(v => {
+        const tc = v === 1 ? 'p1' : v === 0 ? 'p0' : 'pn';
+        return `<span class="pass-tick ${tc}"></span>`;
+      }).join('');
+      return `<div class="${cls}" title="Pass/fail history (oldest→newest)">${ticks}</div>`;
+    }
+
+    // ─── Infer failure stage from a history/result row ───
+    function inferStage(r) {
+      if (r.stage) return r.stage;
+      const err = (r.error || r.error_message || '').toLowerCase();
+      if (!err) return null;
+      if (err.includes('handshake') || err.includes('wireguard') || err.includes('wg') || err.includes('connect')) return 'handshake';
+      if (err.includes('session') || err.includes('tx') || err.includes('broadcast')) return 'session';
+      if (err.includes('speed') || err.includes('mbps') || err.includes('download') || err.includes('upload')) return 'speedtest';
+      if (err.includes('wallet') || err.includes('mnemonic') || err.includes('sign')) return 'wallet';
+      if (err.includes('rpc') || err.includes('lcd') || err.includes('grpc') || err.includes('timeout')) return 'rpc';
+      return 'other';
+    }
+
+    // ─── URL state sync ───
+    function urlToState() {
+      const p = new URLSearchParams(window.location.search);
+      if (p.has('q'))       searchQuery   = p.get('q');
+      if (p.has('country')) countryFilter = p.get('country');
+      if (p.has('service')) typeFilter    = p.get('service');
+      if (p.has('sort'))    sortKey       = p.get('sort');
+      if (p.has('window'))  passWindow    = parseInt(p.get('window'), 10) || 25;
+      if (p.has('page'))    currentOffset = (parseInt(p.get('page'), 10) - 1 || 0) * PAGE_SIZE;
+    }
+
+    function stateToUrl() {
+      const p = new URLSearchParams();
+      if (searchQuery)             p.set('q',       searchQuery);
+      if (countryFilter)           p.set('country', countryFilter);
+      if (typeFilter)              p.set('service', typeFilter);
+      if (sortKey !== 'mbps_desc') p.set('sort',    sortKey);
+      if (passWindow !== 25)       p.set('window',  passWindow);
+      const curPage = Math.floor(currentOffset / PAGE_SIZE) + 1;
+      if (curPage > 1)             p.set('page',    curPage);
+      const qs = p.toString();
+      history.replaceState(null, '', qs ? '?' + qs : window.location.pathname);
+    }
+
+    // ─── Update active filter chips ───
+    function updateFilterChips() {
+      const container = document.getElementById('filterChipsContainer');
+      const bar       = document.getElementById('activeFilters');
+      container.innerHTML = '';
+
+      const chips = [];
+      if (searchQuery)   chips.push({ label: `"${searchQuery}"`,  clear: () => { searchQuery = '';   document.getElementById('searchInput').value = ''; } });
+      if (countryFilter) {
+        const ft = flagText(countryFilter);
+        chips.push({ label: (ft ? ft + ' · ' : '') + countryFilter, clear: () => { countryFilter = ''; document.getElementById('countryFilter').value = ''; } });
+      }
+      if (typeFilter) {
+        const lbl = { wg: 'WireGuard', v2: 'V2Ray', ovpn: 'OpenVPN', hy2: 'Hysteria2' }[typeFilter] || typeFilter;
+        chips.push({ label: lbl, clear: () => { typeFilter = ''; setActiveChip(''); } });
+      }
+
+      chips.forEach(c => {
+        const el = document.createElement('span');
+        el.className = 'filter-chip';
+        el.innerHTML = `${escHtml(c.label)} <span class="filter-chip-x">×</span>`;
+        el.addEventListener('click', () => { c.clear(); currentOffset = 0; filterAndSort(); renderPage(); updateFilterChips(); stateToUrl(); });
+        container.appendChild(el);
+      });
+
+      bar.classList.toggle('has-filters', chips.length > 0);
+    }
+
+    // ─── Service type chip toggle ───
+    function setActiveChip(svc) {
+      typeFilter = svc;
+      document.querySelectorAll('.chip').forEach(c => {
+        c.className = 'chip';
+        const cs = c.dataset.svc;
+        if (cs === svc) {
+          c.classList.add(svc === '' ? 'active-all' : svc === 'wg' ? 'active-wg' : 'active-v2');
+        }
+      });
+    }
+
+    // ─── Pass window update ───
+    function setPassWindow(win) {
+      passWindow = win;
+      localStorage.setItem('sentPassWindow', win);
+      document.querySelectorAll('.win-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.win, 10) === win);
+      });
+      stateToUrl();
+      loadNodes();  // reload with new window param
+    }
+
+    // ─── Normalise node fields (handle both camelCase, snake_case, and DB fields) ───
+    function normalizeNode(n) {
+      return {
+        address:            n.node_addr   || n.address || '',
+        moniker:            n.moniker || '',
+        country:            n.country || '',
+        city:               n.city || '',
+        // Pass transport through as-is (null/undefined when unresolved) — do
+        // NOT default to 1/WireGuard. An unknown transport must render neutral,
+        // not be mislabeled as WireGuard. Mirrors live.html's null handling.
+        service_type:       n.service_type ?? n.serviceType ?? n.type ?? null,
+        latest_mbps:        n.latest_mbps ?? n.latestMbps ?? n.actualMbps ?? null,
+        handshake_ok:       n.handshake_ok ?? n.handshakeOk ?? null,
+        last_tested_at:     n.latest_tested_at || n.last_tested_at || n.lastTested || n.lastTestedAt || null,
+        advertised_mbps:    n.advertised_mbps ?? n.advertisedMbps ?? null,
+        history:            n.history || [],
+        pass_count:         n.pass_count ?? null,
+        total_tests:        n.total_tests ?? null,
+        pass_rate:          n.pass_rate  ?? null,
+        pass_bar:           n.pass_bar   ?? null,   // array of 0/1/null (oldest→newest)
+        latest_error_code:  n.latest_error_code ?? null,
+        sdk:                n.sdk || null,
+        continent:          n.continent || null,
+        tester_os:          n.tester_os || null,
+      };
+    }
+
+    const CONTINENT_NAMES = {
+      EU: 'Europe', AS: 'Asia', NA: 'N. America', SA: 'S. America',
+      AF: 'Africa', OC: 'Oceania', AN: 'Antarctica', ZZ: 'Unknown',
+    };
+    function continentLabel(c) { return c ? (CONTINENT_NAMES[c] || c) : '—'; }
+    function sdkLabel(s) {
+      if (!s) return '—';
+      const m = { dvpnd: 'DVPND' };
+      return m[s] || s;
+    }
+    function osLabel(p) {
+      if (!p) return '';
+      const m = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+      return m[p] || p;
+    }
+
+    // ─── Sparkline SVG (last 10 results) ───
+    function buildSparkline(history) {
+      if (!history || history.length < 2) {
+        return '<svg width="60" height="20"><line x1="0" y1="10" x2="60" y2="10" style="stroke:var(--border)" stroke-width="1"/></svg>';
+      }
+      const pts  = history.slice(-10);
+      const vals = pts.map(h => h.mbps ?? h.actualMbps ?? h.download_mbps ?? 0);
+      const max  = Math.max(...vals, 1);
+      const W = 60, H = 20;
+      const xStep = W / Math.max(pts.length - 1, 1);
+      const coords = vals.map((v, i) => {
+        const x = (i * xStep).toFixed(1);
+        const y = (H - 1 - (v / max) * (H - 3)).toFixed(1);
+        return `${x},${y}`;
+      });
+      const last = vals[vals.length - 1];
+      const clrVar = last >= 20 ? 'var(--green)' : last >= 5 ? 'var(--yellow)' : last > 0 ? 'var(--red)' : 'var(--border)';
+      return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
+        <polyline points="${coords.join(' ')}" fill="none" style="stroke:${clrVar}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>`;
+    }
+
+    // ─── Line chart SVG (last 30 results) ───
+    function buildLineChart(history) {
+      const svgEl = document.getElementById('dChart');
+      const pts   = (history || []).slice(-30);
+      if (pts.length < 2) {
+        svgEl.innerHTML = '<text x="50%" y="50%" text-anchor="middle" style="fill:var(--text-muted)" font-size="11">No data</text>';
+        return;
+      }
+      const W = 380, H = 80;
+      const PL = 34, PR = 6, PT = 5, PB = 16;
+      const iW = W - PL - PR;
+      const iH = H - PT - PB;
+      const vals = pts.map(h => h.mbps ?? h.actualMbps ?? h.download_mbps ?? 0);
+      const maxV = Math.max(...vals, 1);
+      const xS   = i => PL + (i / (pts.length - 1)) * iW;
+      const yS   = v => PT + iH - (v / maxV) * iH;
+
+      // Grid
+      let grid = '';
+      for (let i = 0; i <= 4; i++) {
+        const v = (maxV / 4) * i;
+        const y = yS(v).toFixed(1);
+        grid += `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" style="stroke:var(--border)" stroke-width="1"/>`;
+        grid += `<text x="${PL - 3}" y="${+y + 3}" text-anchor="end" style="fill:var(--text-muted)" font-size="9">${v >= 1 ? v.toFixed(0) : v.toFixed(1)}</text>`;
+      }
+
+      const coords  = pts.map((_, i) => `${xS(i).toFixed(1)},${yS(vals[i]).toFixed(1)}`);
+      const fillPts = [
+        `${xS(0).toFixed(1)},${(PT + iH).toFixed(1)}`,
+        ...coords,
+        `${xS(pts.length - 1).toFixed(1)},${(PT + iH).toFixed(1)}`,
+      ];
+
+      let dots = '';
+      pts.forEach((p, i) => {
+        const passed = p.passed ?? p.pass ?? (vals[i] > 0);
+        dots += `<circle cx="${xS(i).toFixed(1)}" cy="${yS(vals[i]).toFixed(1)}" r="2.5" style="fill:${passed ? 'var(--green)' : 'var(--red)'}"/>`;
+      });
+
+      svgEl.innerHTML = `
+        <defs>
+          <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--green)" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="var(--green)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${grid}
+        <polygon points="${fillPts.join(' ')}" fill="url(#ag)"/>
+        <polyline points="${coords.join(' ')}" fill="none" style="stroke:var(--green)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+      `;
+    }
+
+    // ─── Load public stats (summary bar) ───
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/public/stats');
+        if (!res.ok) return;
+        const d = await res.json();
+        const tsEl = document.getElementById('lastRunTs');
+        const tsWrap = document.getElementById('headerTsWrap');
+        if (tsEl && d.lastRunAt) {
+          tsEl.textContent = fmtRelative(d.lastRunAt);
+          if (tsWrap) tsWrap.style.display = '';
+        }
+        const sumTotalEl   = document.getElementById('sumTotal');
+        const sumPassEl    = document.getElementById('sumPass');
+        const sumMedianEl  = document.getElementById('sumMedian');
+        const sumUpdatedEl = document.getElementById('sumUpdated');
+        if (sumTotalEl)   sumTotalEl.textContent   = d.totalNodes  != null ? d.totalNodes : '—';
+        if (sumPassEl)    sumPassEl.textContent    = d.passingPct  != null ? Number(d.passingPct).toFixed(1) + '%' : '—';
+        if (sumMedianEl)  sumMedianEl.textContent  = d.medianMbps  != null ? fmtMbps(d.medianMbps) : '—';
+        if (sumUpdatedEl) sumUpdatedEl.textContent = fmtRelative(d.lastRunAt) || '—';
+        // The headline sentence replaced the old summary bar, but nothing filled it.
+        // It describes the directory below, so count from the same list.
+        const dir = await fetch('/api/public/nodes?limit=500').then((r) => (r.ok ? r.json() : null));
+        if (dir && Array.isArray(dir.results)) {
+          const rows = dir.results;
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          set('idTotal', rows.length);
+          set('idCountries', new Set(rows.map((n) => n.country).filter(Boolean)).size);
+          set('idPassing', rows.filter((n) => n.latest_mbps != null && n.latest_mbps > 0).length);
+        }
+      } catch (_) { /* not yet available */ }
+    }
+
+    // ─── Live-mode banner: show only when admin has Public Testing running ───
+    async function refreshLiveBanner() {
+      try {
+        const res = await fetch('/api/public/test/status');
+        if (!res.ok) return;
+        const d = await res.json();
+        const el = document.getElementById('liveBanner');
+        if (!el) return;
+        el.style.display = d.running ? 'flex' : 'none';
+      } catch (_) { /* ignore */ }
+    }
+
+    // ─── Populate country filter ───
+    function populateCountries(nodes) {
+      const seen    = new Set();
+      nodes.forEach(n => { if (n.country) seen.add(n.country); });
+      const sorted  = [...seen].sort();
+      const current = document.getElementById('countryFilter').value;
+      const sel     = document.getElementById('countryFilter');
+      while (sel.options.length > 1) sel.remove(1);
+      sorted.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        const ft = flagText(c);
+        opt.textContent = (ft ? ft + ' · ' : '') + c;
+        sel.appendChild(opt);
+      });
+      if (current && seen.has(current)) sel.value = current;
+    }
+
+    // ─── Load nodes from API ───
+    async function loadNodes() {
+      setTableLoading(true);
+      allNodes = [];
+
+      const params = new URLSearchParams({ limit: '500', window: String(passWindow) });
+      if (searchQuery)   params.set('q',       searchQuery);
+      if (countryFilter) params.set('country',  countryFilter);
+      // Solana: protocol families (WireGuard + AmneziaWG, V2Ray + Xray) are filtered in
+      // filterAndSort; the server's exact service match would drop the variants.
+      params.set('sort', sortKey);
+      if (tabMode === 'current' && currentRunId != null) params.set('runId', String(currentRunId));
+      if (tabMode === 'last'    && lastRunId    != null) params.set('runId', String(lastRunId));
+
+      try {
+        const res = await fetch('/api/public/nodes?' + params.toString());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        if (data.note) {
+          setTableMessage(data.note);
+          return;
+        }
+
+        const raw = Array.isArray(data) ? data : (data.nodes || data.results || []);
+        allNodes  = raw.map(normalizeNode);
+
+        // Client-side type filter (fallback if server-side didn't apply)
+        filterAndSort();
+        renderPage();
+        populateCountries(allNodes);
+        updateFilterChips();
+        // Don't fabricate a timestamp from Date.now() when no batch has been
+        // recorded yet — render an em-dash instead so visitors aren't misled
+        // into thinking the empty result set was "just snapshotted".
+        const _latest = (_batchList && _batchList[0] && _batchList[0].started_at) || null;
+        document.getElementById('lastUpdatedLabel').textContent = _latest
+          ? 'Snapshot ' + fmtUtc(_latest)
+          : 'Snapshot —';
+      } catch (err) {
+        setTableMessage(`Failed to load: ${err.message}`, true);
+      }
+    }
+
+    function setTableLoading(show) {
+      if (show) {
+        document.getElementById('nodesBody').innerHTML =
+          `<tr><td colspan="11"><div class="loading-state"><span class="spinner"></span>Loading nodes…</div></td></tr>`;
+        document.getElementById('paginationWrap').style.display = 'none';
+      }
+    }
+
+    function setTableMessage(msg, isError) {
+      const col = isError ? 'color:var(--accent-red)' : '';
+      document.getElementById('nodesBody').innerHTML =
+        `<tr><td colspan="11"><div class="loading-state" style="${col}">${escHtml(msg)}</div></td></tr>`;
+      document.getElementById('paginationWrap').style.display = 'none';
+    }
+
+    // ─── Filter + Sort ───
+    function filterAndSort() {
+      const q  = searchQuery.toLowerCase();
+      const tf = typeFilter;
+
+      filteredNodes = allNodes.filter(n => {
+        if (q) {
+          const m  = (n.moniker  || '').toLowerCase();
+          const a  = (n.address  || '').toLowerCase();
+          const c  = (n.country  || '').toLowerCase();
+          const ci = (n.city     || '').toLowerCase();
+          const cc = countryCode(n.country).toLowerCase();
+          if (!m.includes(q) && !a.includes(q) && !c.includes(q) && !ci.includes(q) && !cc.includes(q)) return false;
+        }
+        if (countryFilter && n.country !== countryFilter) return false;
+        if (tf) {
+          // Unknown transport matches neither filter — it has no badge to match.
+          if ((solProtocol(n.service_type) || {}).family !== tf) return false;
+        }
+        return true;
+      });
+
+      filteredNodes.sort((a, b) => {
+        switch (sortKey) {
+          case 'mbps_desc':   return (b.latest_mbps || 0) - (a.latest_mbps || 0);
+          case 'mbps_asc':    return (a.latest_mbps || 0) - (b.latest_mbps || 0);
+          case 'pass_desc':   return (b.pass_rate   || 0) - (a.pass_rate   || 0);
+          case 'moniker_asc': return (a.moniker || '').localeCompare(b.moniker || '');
+          case 'tested_desc':
+          default: {
+            const at = a.last_tested_at ? new Date(a.last_tested_at).getTime() : 0;
+            const bt = b.last_tested_at ? new Date(b.last_tested_at).getTime() : 0;
+            return bt - at;
+          }
+        }
+      });
+    }
+
+    // ─── Render current page ───
+    // Coalesce live-broadcast re-renders into one per animation frame so a burst
+    // of SSE events doesn't trigger a full re-sort + DOM rebuild per event.
+    let _renderQueued = false;
+    function scheduleRenderPage() {
+      if (_renderQueued) return;
+      _renderQueued = true;
+      requestAnimationFrame(() => { _renderQueued = false; filterAndSort(); renderPage(); });
+    }
+
+    function renderPage() {
+      const total = filteredNodes.length;
+      document.getElementById('resultsMeta').textContent = total + ' node' + (total !== 1 ? 's' : '');
+
+      if (total === 0) {
+        setTableMessage('No matching nodes. Try adjusting your search or filters.');
+        return;
+      }
+
+      // Clamp currentOffset so SSE-driven re-renders don't leave a stale empty page
+      if (currentOffset >= total) currentOffset = Math.max(0, (Math.ceil(total / PAGE_SIZE) - 1) * PAGE_SIZE);
+
+      const tbody = document.getElementById('nodesBody');
+      const tableWrap = tbody.closest('.table-container, .results-container, div');
+      const prevScroll = tableWrap ? tableWrap.scrollTop : 0;
+
+      const page = filteredNodes.slice(currentOffset, currentOffset + PAGE_SIZE);
+      tbody.innerHTML = '';
+      const frag = document.createDocumentFragment();
+
+      page.forEach((n, i) => {
+        const idx    = currentOffset + i + 1;
+        // Classify transport explicitly. An unresolved transport (null/undefined)
+        // must render a neutral placeholder — never default-label as WireGuard.
+        // Mirrors live.html's hasKnownType handling.
+        const { isV2, isWg, known, code } = classifyTransport(n.service_type);
+        const proto  = known
+          ? `<span class="badge badge-svc">${code}</span>`
+          : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+        const fl     = flag(n.country);
+        const ctry   = `${fl}${escHtml(n.country || '—')}`;
+        const moniker = escHtml(n.moniker || (n.address ? n.address.slice(0, 10) + '…' : '—'));
+        const sc      = speedClass(n.latest_mbps);
+        const speedHtml = n.latest_mbps != null
+          ? `<span class="${sc}">${n.latest_mbps.toFixed(2)}</span> <span style="color:var(--text-muted);font-size:10px">Mbps</span>`
+          : '<span class="speed-none">—</span>';
+        const hsDot   = n.handshake_ok == null ? 'hs-skip' : n.handshake_ok ? 'hs-ok' : 'hs-fail';
+        const spark   = buildSparkline(n.history);
+
+        // Pass history bar
+        let passBarHtml = '<span class="pass-ratio">—</span>';
+        if (n.pass_bar && n.pass_bar.length > 0) {
+          passBarHtml = buildPassBarHtml(n.pass_bar, 'pass-bar');
+          if (n.pass_count != null && n.total_tests != null) {
+            passBarHtml += `<div class="pass-ratio">${n.pass_count}/${n.total_tests}</div>`;
+          }
+        } else if (n.pass_count != null && n.total_tests != null) {
+          passBarHtml = `<span class="pass-ratio">${n.pass_count}/${n.total_tests}</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.dataset.addr = n.address;
+        tr.title = 'Click to see history and errors';
+        tr.style.height = '44px';
+        if (n.address === selectedAddr) tr.classList.add('selected');
+        const city = n.city ? ` · ${escHtml(n.city)}` : '';
+        const countryFull = `${ctry}${city}`;
+        // Show copy button for any row without a successful speedtest. Covers:
+        //   handshake_ok === false (handshake explicitly failed)
+        //   latest_mbps == null    (skipped, timeout, or pre-handshake failure)
+        // Excludes only confirmed-pass rows where a real Mbps reading exists.
+        const isFail = n.handshake_ok === false || n.latest_mbps == null;
+        const rowCopy = isFail
+          ? `<button class="row-copy-btn" title="Copy latest failure log" data-addr="${escHtml(n.address)}" data-moniker="${escHtml(n.moniker || '')}" onclick="copyRowFailure(event)">⎘</button>
+             <button class="row-copy-btn" title="View error details" data-addr="${escHtml(n.address)}" data-moniker="${escHtml(n.moniker || '')}" onclick="showRowFailurePopup(event)" style="margin-left:4px">👁</button>`
+          : '';
+        tr.innerHTML = `
+          <td style="color:var(--text-dim);font-size:11px;padding-left:10px;width:40px">${idx}</td>
+          <td style="width:50px">${proto}</td>
+          <td class="td-moniker" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(n.address)}">${moniker}</td>
+          <td style="color:var(--text-dim);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml((n.country||'') + (n.city ? ' · '+n.city : ''))}">${countryFull}</td>
+          <td class="td-speed" style="text-align:right;width:100px">${speedHtml}</td>
+          <td style="text-align:center;width:80px"><span class="hs-dot ${hsDot}"></span></td>
+          <td style="color:var(--text-dim);font-size:11px;width:90px">${fmtRelative(n.last_tested_at)}</td>
+          <td style="width:110px">${passBarHtml}</td>
+          <td style="width:70px">${spark}</td>
+          <td style="width:40px;text-align:center">${rowCopy}</td>
+          <td style="color:var(--text-muted);font-size:12px;padding-right:12px;text-align:right;user-select:none">›</td>
+        `;
+        tr.addEventListener('click', () => openDetail(n));
+        frag.appendChild(tr);
+      });
+      tbody.appendChild(frag);
+
+      // Pagination
+      const totalPages = Math.ceil(total / PAGE_SIZE);
+      const curPage    = Math.floor(currentOffset / PAGE_SIZE) + 1;
+
+      const paginationEl = document.getElementById('paginationWrap');
+      if (totalPages > 1) {
+        paginationEl.style.display = '';
+        document.getElementById('pageInfo').textContent = `Page ${curPage} of ${totalPages} — Showing ${currentOffset + 1}–${Math.min(currentOffset + PAGE_SIZE, total)} of ${total}`;
+        document.getElementById('prevBtn').disabled = currentOffset === 0;
+        document.getElementById('nextBtn').disabled = currentOffset + PAGE_SIZE >= total;
+      } else {
+        paginationEl.style.display = 'none';
+      }
+
+      // Restore scroll position so SSE-driven re-renders don't yank the user back to top
+      if (tableWrap) tableWrap.scrollTop = prevScroll;
+    }
+
+    // ─── Sort ───
+    function applySortKey(key) {
+      sortKey = key;
+      currentOffset = 0;
+      document.getElementById('sortSelect').value = key;
+      stateToUrl();
+      filterAndSort();
+      renderPage();
+    }
+
+    // ─── Per-row copy: fetch latest failure and copy as formatted text ───
+    async function copyRowFailure(ev) {
+      ev.stopPropagation();
+      const btn = ev.currentTarget;
+      const addr = btn.dataset.addr;
+      const moniker = btn.dataset.moniker || '';
+      if (!addr) return;
+      const original = btn.innerHTML;
+      btn.innerHTML = '…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/public/node/' + encodeURIComponent(addr) + '/errors?limit=1');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const errs = (data && data.errors) || [];
+        if (!errs.length) {
+          btn.innerHTML = '—';
+          setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+          return;
+        }
+        const er = errs[0];
+        const lines = [
+          'Sentinel Node Tester — Failure Log',
+          '──────────────────────────────────',
+          'Node:       ' + (moniker || '—'),
+          'Address:    ' + addr,
+          'Stage:      ' + (er.stage || '—'),
+          'Error:      ' + errLabel(er.error_code),
+          'Error Code: ' + (er.error_code || '—'),
+          'Message:    ' + (er.error_message || '—'),
+          'Captured:   ' + (er.captured_at ? fmtUtc(er.captured_at) : '—'),
+          '',
+        ];
+        if (er.log_snippet) {
+          lines.push('Log Snippet:');
+          lines.push(er.log_snippet);
+        }
+        const txt = lines.join('\n');
+        try { await navigator.clipboard.writeText(txt); }
+        catch (_) {
+          const ta = document.createElement('textarea');
+          ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        btn.innerHTML = '✓';
+      } catch (_) {
+        btn.innerHTML = '!';
+      }
+      setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+    }
+
+    async function showRowFailurePopup(ev) {
+      ev.stopPropagation();
+      const btn = ev.currentTarget;
+      const addr = btn.dataset.addr;
+      const moniker = btn.dataset.moniker || '';
+      if (!addr) return;
+
+      const existing = document.getElementById('errorPopupOverlay');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'errorPopupOverlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:var(--glass-bg);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      // Scoped Escape handler — this popup sits OVER the detail drawer
+      // (z-index 9999 vs 8000). Escape must close the TOP-most layer only, so
+      // this handler stopImmediatePropagation()s (preventing the document-level
+      // drawer Escape from also firing) and removes ONLY the popup. The handler
+      // removes itself on every close path. The drawer's Escape handler also
+      // bails early while #errorPopupOverlay exists, for defense-in-depth.
+      const closeErrorPopup = () => {
+        document.removeEventListener('keydown', onPopupKeydown, true);
+        overlay.remove();
+      };
+      function onPopupKeydown(e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          closeErrorPopup();
+        }
+      }
+      document.addEventListener('keydown', onPopupKeydown, true);
+      overlay.onclick = (e) => { if (e.target === overlay) closeErrorPopup(); };
+      const popup = document.createElement('div');
+      popup.style.cssText = 'background:var(--bg-card-solid);border:1px solid var(--border);border-radius:16px;padding:24px 28px;max-width:780px;width:92%;max-height:85vh;overflow-y:auto;color:var(--text);font-family:var(--font-display);line-height:1.55';
+      popup.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="font-size:18px;font-weight:700;letter-spacing:1px;margin:0">Node Error Details</h2>
+          <span id="errorPopupCloseX" style="cursor:pointer;color:var(--text-dim);font-size:22px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%">&times;</span>
+        </div>
+        <div id="errorPopupBody" style="font-size:13px;color:var(--text-dim)">Loading…</div>
+      `;
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+      const xBtn = document.getElementById('errorPopupCloseX');
+      if (xBtn) xBtn.onclick = closeErrorPopup;
+
+      try {
+        const res = await fetch('/api/public/node/' + encodeURIComponent(addr) + '/errors?limit=1');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const errs = (data && data.errors) || [];
+        const body = document.getElementById('errorPopupBody');
+        if (!body) return;
+        if (!errs.length) {
+          body.innerHTML = '<div style="color:var(--text-muted)">No stored failure log for this node yet.</div>';
+          return;
+        }
+        const er = errs[0];
+        const eh = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        const captured = er.captured_at ? fmtUtc(er.captured_at) : '—';
+        const row = (label, value) => `
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <div style="color:var(--text-muted);font-size:12px">${label}</div>
+            <div style="color:var(--text);word-break:break-all">${value || '—'}</div>
+          </div>`;
+        body.innerHTML = `
+          ${row('Node', eh(moniker))}
+          ${row('Address', `<span style="font-family:var(--font-mono);font-size:12px">${eh(addr)}</span>`)}
+          ${row('Stage', eh(er.stage))}
+          ${row('Error', `<span style="color:var(--text)">${eh(errLabel(er.error_code))}</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-left:8px">${eh(er.error_code || '')}</span>`)}
+          ${row('Captured', eh(captured))}
+          ${row('Message', `<span style="font-family:var(--font-mono);font-size:12px;white-space:pre-wrap">${eh(er.error_message)}</span>`)}
+          ${er.log_snippet ? `
+            <div style="margin-top:14px">
+              <div style="color:var(--text-muted);font-size:12px;margin-bottom:6px">Log Snippet</div>
+              <pre style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-family:var(--font-mono);font-size:11.5px;line-height:1.5;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0">${eh(er.log_snippet)}</pre>
+            </div>` : ''}
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button id="errorPopupCloseBtn" class="row-copy-btn" style="padding:6px 14px">Close</button>
+          </div>
+        `;
+        const closeBtn = document.getElementById('errorPopupCloseBtn');
+        if (closeBtn) closeBtn.onclick = closeErrorPopup;
+      } catch (err) {
+        const body = document.getElementById('errorPopupBody');
+        if (body) body.innerHTML = '<div style="color:var(--red)">Failed to load: ' + eh(err.message || 'unknown') + '</div>';
+      }
+    }
+
+    // ─── Detail Drawer ───
+    async function openDetail(node) {
+      selectedAddr = node.address;
+      // Highlight row
+      document.querySelectorAll('#nodesBody tr').forEach(tr => {
+        tr.classList.toggle('selected', tr.dataset.addr === node.address);
+      });
+
+      const svc = classifyTransport(node.service_type);
+      document.getElementById('dTitle').textContent    = node.moniker || node.address;
+      document.getElementById('dSubtitle').textContent = [node.country, node.city].filter(Boolean).join(' · ') || node.address;
+      document.getElementById('dAddr').textContent     = node.address;
+      const dl = document.getElementById('dAddrLink');
+      if (dl) dl.href = 'https://explorer.solana.com/address/' + encodeURIComponent(node.address) + '?cluster=devnet';
+      const fp = document.getElementById('dFullPageLink');
+      if (fp) fp.href = '/node/' + encodeURIComponent(node.address);
+
+      document.getElementById('dMeta').innerHTML = `
+        <div class="meta-cell">
+          <div class="meta-label">Country</div>
+          <div class="meta-value">${flag(node.country) || ''} ${escHtml(node.country || '—')}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">City</div>
+          <div class="meta-value">${escHtml(node.city || '—')}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Service</div>
+          <div class="meta-value">${svc.known ? svc.name : '—'}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Adv. Speed</div>
+          <div class="meta-value">${node.advertised_mbps != null ? node.advertised_mbps.toFixed(1) + ' Mbps' : '—'}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Latest Actual</div>
+          <div class="meta-value" style="color:${node.latest_mbps >= 5 ? 'var(--accent-green)' : node.latest_mbps > 0 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${fmtMbps(node.latest_mbps)}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Last Tested</div>
+          <div class="meta-value" style="font-size:12px;font-weight:400">${fmtRelative(node.last_tested_at)}</div>
+        </div>
+        <div class="meta-cell">
+          <div class="meta-label">Region</div>
+          <div class="meta-value" style="font-size:12px;font-weight:400">${continentLabel(node.continent)}</div>
+        </div>
+      `;
+
+      // Show pass bar from list data
+      renderDrawerPassBar(node.pass_bar, node.pass_count, node.total_tests);
+
+      // Show with cached history
+      _drawerHistory = node.history || [];
+      _drawerErrors  = [];
+      buildLineChart(_drawerHistory);
+      renderHistoryTable(_drawerHistory);
+      renderErrorsSection([]);
+      openDrawer();
+
+      // Fetch fresh from detail endpoint
+      try {
+        const res = await fetch(`/api/public/node/${encodeURIComponent(node.address)}?historyLimit=100`);
+        if (res.ok) {
+          const d = await res.json();
+          if (!d.note) {
+            _drawerHistory = d.history || d.results || node.history || [];
+            _drawerErrors  = d.errors  || [];
+            buildLineChart(_drawerHistory);
+            renderHistoryTable(_drawerHistory);
+            renderErrorsSection(_drawerErrors);
+          }
+        }
+      } catch (_) { /* use cached */ }
+    }
+
+    // ─── Render pass bar in drawer ───
+    function renderDrawerPassBar(barArr, passCount, totalTests) {
+      const wrap = document.getElementById('dPassBarWrap');
+      const barEl = document.getElementById('dPassBar');
+      const headline = document.getElementById('dPassHeadline');
+
+      if (!barArr || barArr.length === 0) {
+        wrap.style.display = 'none';
+        return;
+      }
+
+      wrap.style.display = '';
+      const pct = totalTests > 0 ? ((passCount / totalTests) * 100).toFixed(0) : '?';
+      headline.textContent = `${passCount}/${totalTests} passes (${pct}%) — last ${barArr.length} tests`;
+
+      barEl.innerHTML = barArr.map(v => {
+        const tc = v === 1 ? 'p1' : v === 0 ? 'p0' : 'pn';
+        return `<span class="pass-tick ${tc}"></span>`;
+      }).join('');
+
+      // Click bar to scroll to that test in history
+      barEl.querySelectorAll('.pass-tick').forEach((tick, idx) => {
+        tick.title = `Test ${idx + 1}: ${barArr[idx] === 1 ? 'PASS' : barArr[idx] === 0 ? 'FAIL' : 'no data'}`;
+      });
+    }
+
+    function renderHistoryTable(history) {
+      const tbody = document.getElementById('dHistBody');
+      let rows = (history || []).slice(0, 100); // newest first from API
+      if (histFilterMode === 'fails') {
+        rows = rows.filter(r => !(r.passed ?? r.pass ?? (r.actual_mbps != null && r.actual_mbps > 0)));
+      }
+      if (rows.length === 0) {
+        const msg = histFilterMode === 'fails' ? 'No failures found in recent history' : 'No history';
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-dim);padding:10px 6px;font-size:12px">${msg}</td></tr>`;
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      rows.forEach((r, i) => {
+        const passed  = r.passed ?? r.pass ?? ((r.actual_mbps ?? r.actualMbps ?? 0) > 0);
+        const mbps    = r.actual_mbps ?? r.mbps ?? r.actualMbps ?? r.download_mbps ?? 0;
+        const hsOk    = r.handshake_ok ?? r.handshakeOk ?? null;
+        const ts      = r.tested_at || r.ts || r.created_at || r.date || '';
+        const stage   = inferStage(r);
+        const errMsg  = r.error_message || r.error || '';
+        const tr      = document.createElement('tr');
+        tr.style.background = passed ? '' : 'rgba(255,23,68,0.03)';
+        tr.innerHTML = `
+          <td style="color:var(--text-dim)">${i + 1}</td>
+          <td class="${passed ? 'hpass' : 'hfail'}"><span aria-hidden="true" style="display:inline-block;width:10px">${passed ? '●' : '▲'}</span> ${passed ? 'PASS' : 'FAIL'}</td>
+          <td class="${speedClass(mbps)}" style="font-family:var(--font-display);font-weight:700">${fmtMbps(mbps)}</td>
+          <td style="color:var(--text-dim);font-size:10px">${stage ? escHtml(stage) : '—'}</td>
+          <td style="color:var(--red);font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(errMsg)}">${errMsg ? escHtml(errMsg.slice(0, 50)) : '—'}</td>
+          <td style="color:var(--text-dim)">${fmtRelative(ts)}</td>
+        `;
+        frag.appendChild(tr);
+      });
+      tbody.innerHTML = '';
+      tbody.appendChild(frag);
+    }
+
+    // ─── Render errors section ───
+    function renderErrorsSection(errors) {
+      const section = document.getElementById('dErrorsSection');
+      const list    = document.getElementById('dErrorsList');
+
+      const realErrors = (errors || []).filter(e => e.error_code || e.error_message || e.stage);
+      if (realErrors.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = '';
+      list.innerHTML = '';
+
+      realErrors.slice(0, 20).forEach((e, idx) => {
+        const stage      = e.stage || inferStage({ error_message: e.error_message, error: e.error_message });
+        const errCode    = e.error_code || '—';
+        const errMsg     = e.error_message || e.error || '—';
+        const ts         = e.captured_at || e.tested_at || '';
+        const snippet    = e.log_snippet || null;
+        const itemId     = `err-item-${idx}`;
+
+        const item = document.createElement('div');
+        item.className = 'error-item';
+        item.id = itemId;
+
+        item.innerHTML = `
+          <div class="error-item-header" role="button" aria-expanded="false">
+            ${stage ? `<span class="error-stage-badge">${escHtml(stage)}</span>` : ''}
+            <span class="error-code-txt">${escHtml(errCode)}</span>
+            <span class="error-msg-txt">${escHtml(errMsg)}</span>
+            <span class="error-ts-txt">${fmtRelative(ts)}</span>
+            <span class="error-toggle-arrow">▾</span>
+          </div>
+          <div class="error-item-body">
+            <div class="error-detail-row">
+              <span class="error-detail-label">Code</span>
+              <span class="error-detail-val">${escHtml(errCode)}</span>
+            </div>
+            <div class="error-detail-row">
+              <span class="error-detail-label">Stage</span>
+              <span class="error-detail-val">${escHtml(stage || '—')}</span>
+            </div>
+            <div class="error-detail-row">
+              <span class="error-detail-label">Message</span>
+              <span class="error-detail-val">${escHtml(errMsg)}</span>
+            </div>
+            <div class="error-detail-row">
+              <span class="error-detail-label">When</span>
+              <span class="error-detail-val">${ts ? fmtUtc(ts) : '—'}</span>
+            </div>
+            ${snippet
+              ? `<div class="error-snippet">${escHtml(snippet)}</div>`
+              : `<div style="font-size:10px;color:var(--text-dim);margin-top:6px;font-style:italic">No log was captured for this failure.</div>`
+            }
+            <button class="error-copy-btn" data-err-idx="${idx}" style="align-self:flex-start;margin-top:8px">⎘ Copy</button>
+          </div>
+        `;
+
+        // Toggle expand/collapse
+        item.querySelector('.error-item-header').addEventListener('click', () => {
+          item.classList.toggle('expanded');
+          const hdr = item.querySelector('.error-item-header');
+          hdr.setAttribute('aria-expanded', item.classList.contains('expanded'));
+        });
+
+        // Copy button
+        item.querySelector('.error-copy-btn').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const compact = `${errCode} | ${ts ? fmtUtc(ts) : '?'} | ${errMsg}`;
+          const btn = ev.currentTarget;
+          navigator.clipboard.writeText(compact).then(() => {
+            btn.textContent = '✓ Copied';
+            setTimeout(() => { btn.innerHTML = '⎘ Copy'; }, 1500);
+          }).catch(() => {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = compact;
+              ta.style.cssText = 'position:fixed;top:-9999px';
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              btn.textContent = '✓ Copied';
+              setTimeout(() => { btn.innerHTML = '⎘ Copy'; }, 1500);
+            } catch (_) {}
+          });
+        });
+
+        list.appendChild(item);
+      });
+    }
+
+    let _drawerFocusTrap = null;
+    let _preDrawerFocus = null;
+
+    function openDrawer() {
+      const drawer = document.getElementById('detailDrawer');
+      drawer.classList.add('open');
+      document.getElementById('overlay').classList.add('visible');
+      document.body.classList.add('drawerOpen');
+      _preDrawerFocus = document.activeElement;
+      // Focus close button
+      requestAnimationFrame(() => {
+        const closeBtn = document.getElementById('drawerClose');
+        if (closeBtn) closeBtn.focus();
+        // Focus trap
+        const focusable = () => Array.from(drawer.querySelectorAll(
+          'a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])'
+        ));
+        _drawerFocusTrap = (e) => {
+          if (e.key !== 'Tab') return;
+          const els = focusable();
+          if (!els.length) return;
+          const first = els[0], last = els[els.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+          } else {
+            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }
+        };
+        drawer.addEventListener('keydown', _drawerFocusTrap);
+      });
+    }
+
+    function closeDrawer() {
+      const drawer = document.getElementById('detailDrawer');
+      drawer.classList.remove('open');
+      document.getElementById('overlay').classList.remove('visible');
+      document.body.classList.remove('drawerOpen');
+      selectedAddr = null;
+      document.querySelectorAll('#nodesBody tr.selected').forEach(tr => tr.classList.remove('selected'));
+      if (_drawerFocusTrap) {
+        drawer.removeEventListener('keydown', _drawerFocusTrap);
+        _drawerFocusTrap = null;
+      }
+      if (_preDrawerFocus && typeof _preDrawerFocus.focus === 'function') {
+        _preDrawerFocus.focus();
+        _preDrawerFocus = null;
+      }
+    }
+
+    // ─── Copy address ───
+    document.getElementById('copyAddrBtn').addEventListener('click', () => {
+      const addr = document.getElementById('dAddr').textContent;
+      if (!addr || addr === '—') return;
+      const btn = document.getElementById('copyAddrBtn');
+      navigator.clipboard.writeText(addr).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+      }).catch(() => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = addr;
+          ta.style.cssText = 'position:fixed;top:-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+        } catch (_) {}
+      });
+    });
+
+    // ─── Drawer close ───
+    document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+    document.getElementById('overlay').addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      // If the failure popup is open OVER the drawer, its own scoped handler
+      // (capture phase, stopImmediatePropagation) closes it and this never
+      // fires. This guard is a belt-and-suspenders fallback so Escape never
+      // closes the drawer underneath an open popup and orphans it.
+      if (document.getElementById('errorPopupOverlay')) return;
+      closeDrawer();
+    });
+
+    // ─── Search (debounced) ───
+    document.getElementById('searchInput').addEventListener('input', () => {
+      // Instant client-side filter over the already-loaded set so the visible
+      // list updates on every keystroke (no waiting on the network).
+      searchQuery   = document.getElementById('searchInput').value.trim();
+      currentOffset = 0;
+      filterAndSort();
+      renderPage();
+      updateFilterChips();
+      stateToUrl();
+      // Debounced server re-fetch keeps results correct when broadening the
+      // query beyond the current 500-node client cache (server applies ?q).
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { loadNodes(); }, DEBOUNCE_MS);
+    });
+
+    // ─── Country filter ───
+    document.getElementById('countryFilter').addEventListener('change', () => {
+      countryFilter = document.getElementById('countryFilter').value;
+      currentOffset = 0;
+      filterAndSort();
+      renderPage();
+      updateFilterChips();
+      stateToUrl();
+    });
+
+    // ─── Service type chips ───
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        setActiveChip(chip.dataset.svc);
+        currentOffset = 0;
+        filterAndSort();
+        renderPage();
+        updateFilterChips();
+        stateToUrl();
+      });
+    });
+
+    // ─── Sort select ───
+    document.getElementById('sortSelect').addEventListener('change', () => {
+      applySortKey(document.getElementById('sortSelect').value);
+    });
+
+    // ─── Pass window buttons ───
+    document.querySelectorAll('.win-btn').forEach(btn => {
+      btn.addEventListener('click', () => setPassWindow(parseInt(btn.dataset.win, 10)));
+    });
+
+    // ─── Clear all filters ───
+    document.getElementById('clearAllBtn').addEventListener('click', () => {
+      searchQuery = '';
+      countryFilter = '';
+      typeFilter = '';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('countryFilter').value = '';
+      setActiveChip('');
+      currentOffset = 0;
+      filterAndSort();
+      renderPage();
+      updateFilterChips();
+      stateToUrl();
+    });
+
+    // ─── History filter toggle ───
+    document.querySelectorAll('.hist-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        histFilterMode = btn.dataset.hf;
+        document.querySelectorAll('.hist-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+        renderHistoryTable(_drawerHistory);
+      });
+    });
+
+    // ─── Pagination ───
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      if (currentOffset >= PAGE_SIZE) {
+        currentOffset -= PAGE_SIZE;
+        renderPage();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      if (currentOffset + PAGE_SIZE < filteredNodes.length) {
+        currentOffset += PAGE_SIZE;
+        renderPage();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    // ─── ResizeObserver for SVG chart ───
+    if (typeof ResizeObserver !== 'undefined') {
+      const chartWrap = document.querySelector('.chart-wrap');
+      if (chartWrap) {
+        new ResizeObserver(() => {
+          if (_drawerHistory.length > 0) buildLineChart(_drawerHistory);
+        }).observe(chartWrap);
+      }
+    }
+
+    // ─── Theme toggle ───
+    function toggleTheme() {
+      const cur = document.documentElement.dataset.theme || 'dark';
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+      updateThemeIcon();
+    }
+    function updateThemeIcon() {
+      const cur = document.documentElement.dataset.theme || 'dark';
+      const dark = document.getElementById('themeIconDark');
+      const light = document.getElementById('themeIconLight');
+      if (!dark || !light) return;
+      if (cur === 'dark') { dark.style.display = ''; light.style.display = 'none'; }
+      else { dark.style.display = 'none'; light.style.display = ''; }
+    }
+    document.addEventListener('DOMContentLoaded', updateThemeIcon);
+
+    // ─── Copy helpers ───────────────────────────────────────────────────────
+    async function copyText(text) {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) { return false; }
+    }
+
+    let _toastTimer = null;
+    function showToast(msg, ok) {
+      const t = document.getElementById('copyToast');
+      if (!t) return;
+      clearTimeout(_toastTimer);
+      t.textContent = msg;
+      t.className = 'visible ' + (ok ? 'ok' : 'err');
+      _toastTimer = setTimeout(() => { t.className = ''; }, 2000);
+    }
+
+    function _buildFailureText(errors, nodeAddr, moniker) {
+      if (!errors || errors.length === 0) return '';
+      const dates = errors.map(e => e.captured_at || e.tested_at).filter(Boolean).sort();
+      const dateRange = dates.length
+        ? (dates[0] === dates[dates.length - 1]
+            ? new Date(dates[0]).toISOString()
+            : new Date(dates[0]).toISOString() + ' — ' + new Date(dates[dates.length - 1]).toISOString())
+        : 'unknown';
+      const header = [
+        `# Failure report — ${moniker || nodeAddr}`,
+        `# ${nodeAddr}`,
+        `# captured ${dateRange}`,
+        '',
+      ].join('\n');
+      const body = errors.map(e => {
+        const n   = e.iteration != null ? `[iteration ${e.iteration}]` : '[iteration ?]';
+        const stg = e.stage || '?';
+        const ec  = e.error_code || e.error || '?';
+        const msg = e.error_message || e.error || '';
+        const snip = (e.log_snippet || '').trim();
+        return [
+          `${n} ${stg} ${ec}`,
+          msg,
+          '---',
+          snip,
+          '===',
+        ].join('\n');
+      }).join('\n');
+      return header + body;
+    }
+
+    // ─── Copy Failure Logs (drawer only) ───────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      const copyLogsBtn = document.getElementById('copyFailureLogsBtn');
+      const dlBtn       = document.getElementById('downloadFailureLogsBtn');
+
+      if (copyLogsBtn) {
+        copyLogsBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const nodeAddr = document.getElementById('dAddr').textContent;
+          const moniker  = document.getElementById('dTitle').textContent;
+          const errors   = _drawerErrors || [];
+          const text     = _buildFailureText(errors, nodeAddr, moniker);
+          const ok       = await copyText(text);
+          if (ok) {
+            showToast(`Copied ${errors.length} failure${errors.length !== 1 ? 's' : ''}`, true);
+          } else {
+            showToast('Copy failed — use Download', false);
+          }
+        });
+      }
+
+      if (dlBtn) {
+        dlBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const nodeAddr = document.getElementById('dAddr').textContent;
+          const moniker  = document.getElementById('dTitle').textContent;
+          const errors   = _drawerErrors || [];
+          const text     = _buildFailureText(errors, nodeAddr, moniker);
+          const safe     = (moniker || nodeAddr).replace(/[^a-z0-9_-]/gi, '_').slice(0, 60);
+          const blob     = new Blob([text], { type: 'text/plain' });
+          const url      = URL.createObjectURL(blob);
+          const a        = document.createElement('a');
+          a.href         = url;
+          a.download     = `${safe}-failures.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      }
+    });
+
+    // ─── Stats refresh ───
+    function startStatsRefresh() {
+      loadStats();
+      refreshLiveBanner();
+      statsTimer = setInterval(() => { loadStats(); refreshLiveBanner(); }, REFRESH_MS);
+    }
+
+    // ─── Batch picker ────────────────────────────────────────────────────────
+    let _viewingBatchId = 'current'; // 'current' | numeric id string
+    let _batchList      = [];
+
+    async function loadBatchList() {
+      try {
+        const res = await fetch('/api/public/batches?limit=20');
+        if (!res.ok) return;
+        const data = await res.json();
+        _batchList = data.batches || [];
+        renderBatchSelect();
+      } catch (_) { /* ignore — endpoint may not exist yet */ }
+    }
+
+    function renderBatchSelect() {
+      const sel = document.getElementById('batchSelect');
+      if (!sel) return;
+      // Preserve current selection
+      const prev = _viewingBatchId;
+      // Rebuild options after the always-present "Current" option
+      while (sel.options.length > 1) sel.remove(1);
+      _batchList.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = String(b.id);
+        const started = b.started_at ? fmtRelative(b.started_at) : `#${b.id}`;
+        const size    = b.snapshot_size != null ? ` · ${b.snapshot_size} nodes` : '';
+        const pct     = (b.passed != null && b.snapshot_size > 0)
+          ? ` · ${((b.passed / b.snapshot_size) * 100).toFixed(0)}% pass`
+          : '';
+        opt.textContent = `Batch #${b.id} — ${started}${size}${pct}`;
+        sel.appendChild(opt);
+      });
+      // Restore selection
+      sel.value = String(prev);
+      if (!sel.value) sel.value = 'current';
+      updateBatchMeta();
+    }
+
+    function updateBatchMeta() {
+      const meta = document.getElementById('batchMeta');
+      if (!meta) return;
+      if (_viewingBatchId === 'current') {
+        meta.innerHTML = '<span class="batch-live-dot"></span>Live — updates as checks complete';
+      } else {
+        const b = _batchList.find(x => String(x.id) === String(_viewingBatchId));
+        if (b) {
+          const started  = b.started_at  ? new Date(b.started_at).toLocaleString()  : '?';
+          const finished = b.finished_at ? new Date(b.finished_at).toLocaleString() : 'in progress';
+          meta.textContent = `Started ${started} · finished ${finished}`;
+        } else {
+          meta.textContent = `Batch #${_viewingBatchId}`;
+        }
+      }
+    }
+
+    async function loadBatchSnapshot(batchId) {
+      setTableLoading(true);
+      try {
+        const res = await fetch(`/api/public/batch/${encodeURIComponent(batchId)}?limit=500`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const raw = data.results || [];
+        allNodes = raw.map(n => normalizeNode({
+          node_addr:      n.node_address || n.address || '',
+          moniker:        n.moniker || '',
+          country:        n.country || '',
+          city:           n.city || '',
+          service_type:   n.type ?? n.service_type ?? null,
+          latest_mbps:    n.actual_mbps ?? null,
+          handshake_ok:   n.actual_mbps > 0 ? true : (n.error ? false : null),
+          last_tested_at: n.tested_at || null,
+        }));
+        populateCountries(allNodes);
+        filterAndSort();
+        renderPage();
+        updateFilterChips();
+        const _bts = data?.batch?.started_at || null;
+        document.getElementById('lastUpdatedLabel').textContent = _bts
+          ? 'Snapshot ' + fmtUtc(_bts)
+          : 'Snapshot from batch #' + batchId;
+      } catch (err) {
+        setTableMessage('Failed to load batch: ' + escHtml(err.message), true);
+      }
+    }
+
+    document.getElementById('batchSelect').addEventListener('change', function() {
+      _viewingBatchId = this.value;
+      updateBatchMeta();
+      if (_viewingBatchId === 'current') {
+        loadNodes();
+      } else {
+        // Disconnect SSE live updates for past batches
+        loadBatchSnapshot(_viewingBatchId);
+      }
+    });
+
+    // ─── SSE subscription for live batch updates ──────────────────────────
+    let _sse         = null;
+    let _sseRetry    = 1000;
+    const SSE_MAX_RETRY = 30000;
+
+    // ─── Public Live Log helpers ───
+    const PUBLIC_LOG_MAX = 400;
+    let _publicLogReady = false;
+    function pubLog(msg, klass) {
+      const body = document.getElementById('publicLogBody');
+      if (!body) return;
+      if (!_publicLogReady) {
+        body.innerHTML = '';
+        _publicLogReady = true;
+      }
+      const line = document.createElement('div');
+      line.className = 'log-line' + (klass ? ' ' + klass : '');
+      const ts = new Date().toLocaleTimeString([], { hour12: false });
+      line.textContent = `[${ts}] ${msg}`;
+      body.appendChild(line);
+      while (body.childElementCount > PUBLIC_LOG_MAX) body.firstChild.remove();
+      body.scrollTop = body.scrollHeight;
+    }
+    function pubLogStatus(txt) {
+      const s = document.getElementById('publicLogStatus');
+      if (s) s.textContent = txt;
+    }
+
+    // ─── Public SSE dispatcher ─────────────────────────────────────
+    // The server emits `data: <json>` only (no `event:` field). Every
+    // event type — batch:*, loop:*, iteration:* — arrives via
+    // EventSource.onmessage. Dispatch here on d.type.
+    function handlePublicEvent(d) {
+      switch (d.type) {
+        case 'loop:started':
+          pubLogStatus('running'); pubLog('Loop started', 'log-ok'); break;
+        case 'loop:stopping':
+          pubLogStatus('stopping'); pubLog('Loop stopping…'); break;
+        case 'loop:stopped':
+          pubLogStatus('idle'); pubLog('Loop stopped'); break;
+        case 'loop:error':
+          pubLog('Loop error: ' + (d.error || 'unknown'), 'log-err'); break;
+        case 'iteration:start':
+          pubLog(`Iteration ${d.iteration || '?'} start`); break;
+        case 'iteration:end': {
+          const passed = d.passed != null ? d.passed : '?';
+          const failed = d.failed != null ? d.failed : '?';
+          pubLog(`Iteration ${d.iteration || '?'} end — passed ${passed}, failed ${failed}`, 'log-ok');
+          break;
+        }
+        case 'batch:start': {
+          const lb = document.getElementById('liveBanner');
+          if (lb) lb.style.display = 'flex';
+          loadBatchList();
+          if (_viewingBatchId === 'current') {
+            allNodes = [];
+            filteredNodes = [];
+            renderPage();
+            const lu = document.getElementById('lastUpdatedLabel');
+            if (lu) lu.textContent = 'New batch in progress…';
+            const meta = document.getElementById('batchMeta');
+            if (meta) meta.innerHTML = '<span class="batch-live-dot"></span>New batch started…';
+          }
+          break;
+        }
+        case 'batch:node:result': {
+          // Real-run payloads use snake_case; test-run fanout uses camelCase.
+          const addr    = d.node_address ?? d.address ?? null;
+          const moniker = d.moniker || '';
+          const mbps    = d.actual_mbps ?? d.actualMbps ?? null;
+          const err     = d.error || d.errorCode || null;
+          const tested  = d.tested_at || d.testedAt || new Date().toISOString();
+          const who     = moniker || addr || 'node';
+
+          if (d.skipped || err === 'TEST_RUN_SKIP') {
+            pubLog(`⏭ ${who} — SKIPPED`, 'log-ok');
+          } else if (mbps != null && mbps > 0) {
+            pubLog(`✓ ${who} — ${Number(mbps).toFixed(1)} Mbps`, 'log-ok');
+          } else if (err) {
+            pubLog(`✗ ${who} — ${err}`, 'log-err');
+          } else {
+            pubLog(`• ${who} — tested`);
+          }
+
+          if (_viewingBatchId !== 'current') return;
+          if (!addr) return;
+          try {
+            const norm = normalizeNode({
+              node_addr:      addr,
+              moniker,
+              country:        d.country || '',
+              city:           d.city    || '',
+              service_type:   d.serviceType ?? d.service_type ?? null,
+              latest_mbps:    mbps,
+              handshake_ok:   (d.skipped || err === 'TEST_RUN_SKIP') ? null
+                              : (mbps > 0 ? true : (err ? false : null)),
+              last_tested_at: tested,
+              test_run:       err === 'TEST_RUN_SKIP' || undefined,
+            });
+            const idx = allNodes.findIndex(n => n.address === norm.address);
+            if (idx >= 0) allNodes[idx] = norm; else allNodes.push(norm);
+            scheduleRenderPage();
+          } catch (_) {}
+          break;
+        }
+        case 'batch:end': {
+          const next = d.next_in_ms ? Math.round(d.next_in_ms / 1000) : null;
+          const msg  = next != null ? `Batch complete. Next check in ${next}s` : 'Batch complete.';
+          showToast(msg, true);
+          loadBatchList();
+          break;
+        }
+        case 'batch:gap': {
+          const next = d.next_in_ms ? Math.round(d.next_in_ms / 1000) : null;
+          if (next != null) {
+            const meta = document.getElementById('batchMeta');
+            if (meta && _viewingBatchId === 'current') {
+              meta.innerHTML = `<span class="batch-live-dot"></span>Next batch in ${next}s`;
+            }
+          }
+          break;
+        }
+        case 'init':
+        default:
+          break;
+      }
+    }
+
+    let _sseEverConnected = false;
+    function connectSSE() {
+      if (_sse) { try { _sse.close(); } catch (_) {} }
+      try {
+        _sse = new EventSource('/api/public/events');
+        // NOTE: server emits `data: <json>\n\n` only — no `event:` lines.
+        // All dispatch must happen here via d.type. Do NOT use addEventListener('<type>',…).
+        _sse.onmessage = (ev) => {
+          let d = null;
+          try { d = JSON.parse(ev.data || '{}'); } catch (_) { return; }
+          if (!d || !d.type) return;
+          try { handlePublicEvent(d); } catch (_) {}
+        };
+
+        _sse.onopen  = () => {
+          _sseRetry = 1000;
+          // On reconnect (not initial connect), re-seed via REST so we don't
+          // show stale batch list / node data while waiting for the next event.
+          if (_sseEverConnected) {
+            (async () => {
+              try { await loadBatchList(); } catch (_) {}
+              try { loadNodes(); } catch (_) {}
+            })();
+          }
+          _sseEverConnected = true;
+        };
+        _sse.onerror = () => {
+          try { _sse.close(); } catch (_) {}
+          _sse = null;
+          setTimeout(connectSSE, _sseRetry);
+          _sseRetry = Math.min(_sseRetry * 2, SSE_MAX_RETRY);
+        };
+      } catch (_) { /* SSE not supported or blocked */ }
+    }
+
+    // ─── Init: restore URL params, then load ───
+    urlToState();
+    // Restore select and chips from state
+    document.getElementById('sortSelect').value = sortKey;
+    document.getElementById('searchInput').value = searchQuery;
+    setActiveChip(typeFilter);
+    document.querySelectorAll('.win-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.win, 10) === passWindow);
+    });
+    startStatsRefresh();
+    connectSSE();
+
+    (async () => {
+      await loadBatchList();
+      loadNodes();
+    })();
+  </script>
+
+  <!-- Copy toast — single reused node -->
+  <div id="copyToast" role="status" aria-live="polite"></div>
+
+  <script src="/about-modal.js"></script>
+</body>
+</html>
